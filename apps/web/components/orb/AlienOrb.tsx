@@ -46,7 +46,6 @@ export function AlienOrb({
               intensity={0.55}
               luminanceThreshold={0.35}
               luminanceSmoothing={0.25}
-              mipmapBlur
             />
             <ChromaticAberration
               offset={chromaticOffset}

@@ -66,10 +66,12 @@ float snoise(vec3 v) {
 }
 `;
 
+// Outer shell: the displaced, veined "skin" of the orb.
 export const orbVertexShader = /* glsl */ `
 uniform float uTime;
 uniform float uDisplacement;
 uniform float uSpeed;
+uniform float uDistortion;
 
 varying vec3 vNormal;
 varying vec3 vViewPosition;
@@ -84,7 +86,7 @@ void main() {
   float fine = snoise(pos * 4.0 - uTime * uSpeed * 1.7) * 0.3;
   float noise = slow + fine;
 
-  pos += normal * noise * uDisplacement;
+  pos += normal * noise * (uDisplacement + uDistortion);
   vNoise = noise;
 
   vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
@@ -101,6 +103,8 @@ uniform vec3 uGlowColor;
 uniform float uTime;
 uniform float uOpacity;
 uniform float uFresnelPower;
+uniform float uPulse;
+uniform float uEnergyIntensity;
 
 varying vec3 vNormal;
 varying vec3 vViewPosition;
@@ -110,15 +114,92 @@ void main() {
   vec3 viewDir = normalize(vViewPosition);
   float fresnel = pow(1.0 - clamp(dot(viewDir, vNormal), 0.0, 1.0), uFresnelPower);
 
-  float pulse = 0.6 + 0.4 * sin(uTime * 1.6);
+  float pulse = 0.6 + 0.4 * sin(uTime * 1.6) + uPulse;
   float veins = smoothstep(0.35, 0.95, vNoise * 0.5 + 0.5);
+  float energy = 1.0 + uEnergyIntensity;
 
   vec3 core = mix(uColor, uGlowColor, veins);
-  vec3 rim = uGlowColor * fresnel * (0.9 + pulse * 0.5);
-  vec3 color = core * (0.32 + veins * 0.32) + rim;
+  vec3 rim = uGlowColor * fresnel * (0.9 + pulse * 0.5) * energy;
+  vec3 color = core * (0.32 + veins * 0.32) * (1.0 + uEnergyIntensity * 0.4) + rim;
 
   float alpha = clamp(fresnel * 0.85 + veins * 0.22 + 0.08, 0.0, 1.0) * uOpacity;
 
   gl_FragColor = vec4(color, alpha);
+}
+`;
+
+// Inner core: a soft, camera-facing plasma glow to fake volumetric depth
+// without real raymarching — bright at the center, fading toward the rim.
+export const orbCoreGlowVertexShader = /* glsl */ `
+uniform float uTime;
+uniform float uDistortion;
+
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+
+${simplexNoise3D}
+
+void main() {
+  vec3 pos = position;
+  float wobble = snoise(pos * 2.2 + uTime * 0.6) * (0.05 + uDistortion * 0.15);
+  pos += normal * wobble;
+
+  vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+  vViewPosition = -mvPosition.xyz;
+  vNormal = normalize(normalMatrix * normal);
+  gl_Position = projectionMatrix * mvPosition;
+}
+`;
+
+export const orbCoreGlowFragmentShader = /* glsl */ `
+uniform vec3 uColor;
+uniform float uTime;
+uniform float uPulse;
+uniform float uEnergyIntensity;
+
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+
+void main() {
+  vec3 viewDir = normalize(vViewPosition);
+  float facing = clamp(dot(viewDir, vNormal), 0.0, 1.0);
+  float glow = pow(facing, 1.6);
+
+  float pulse = 0.7 + 0.3 * sin(uTime * 2.1) + uPulse * 0.8;
+  vec3 color = uColor * glow * pulse * (1.0 + uEnergyIntensity);
+
+  gl_FragColor = vec4(color, glow * 0.85);
+}
+`;
+
+// Halo: rendered on the back faces of an oversized sphere so only the
+// silhouette rim shows — a cheap "atmosphere" glow around the orb.
+export const orbHaloVertexShader = /* glsl */ `
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+
+void main() {
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  vViewPosition = -mvPosition.xyz;
+  vNormal = normalize(normalMatrix * normal);
+  gl_Position = projectionMatrix * mvPosition;
+}
+`;
+
+export const orbHaloFragmentShader = /* glsl */ `
+uniform vec3 uColor;
+uniform float uEnergyIntensity;
+
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+
+void main() {
+  vec3 viewDir = normalize(vViewPosition);
+  // Rendered with BackSide: bright at grazing angles (the silhouette),
+  // faint where the far shell faces the camera head-on — a cheap atmosphere rim.
+  float facing = dot(viewDir, vNormal);
+  float rim = pow(clamp(1.0 - abs(facing), 0.0, 1.0), 3.0);
+  vec3 color = uColor * rim * (1.0 + uEnergyIntensity);
+  gl_FragColor = vec4(color, rim * 0.5);
 }
 `;
