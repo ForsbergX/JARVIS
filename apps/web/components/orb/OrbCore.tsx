@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import "./OrbMaterial";
@@ -10,19 +10,35 @@ interface OrbCoreProps {
   color: string;
   glowColor: string;
   size: number;
+  /** 0–1 live voice amplitude; when provided, pulses the existing look instead of changing it. */
+  audioLevelRef?: React.RefObject<number>;
 }
 
-export function OrbCore({ color, glowColor, size }: OrbCoreProps) {
+export function OrbCore({ color, glowColor, size, audioLevelRef }: OrbCoreProps) {
   const materialRef = useRef<OrbMaterialImpl>(null);
   const cageRef = useRef<THREE.Mesh>(null);
+  const baseDisplacement = useRef(0);
+  const baseSpeed = useRef(0);
+
+  useEffect(() => {
+    if (materialRef.current) {
+      baseDisplacement.current = materialRef.current.uDisplacement;
+      baseSpeed.current = materialRef.current.uSpeed;
+    }
+  }, []);
 
   useFrame((state, delta) => {
+    const level = audioLevelRef?.current ?? 0;
+
     if (materialRef.current) {
       materialRef.current.uTime += delta;
+      materialRef.current.uDisplacement = baseDisplacement.current + level * 0.45;
+      materialRef.current.uSpeed = baseSpeed.current + level * 0.9;
     }
     if (cageRef.current) {
-      cageRef.current.rotation.y += delta * 0.08;
-      cageRef.current.rotation.x += delta * 0.03;
+      const spin = 1 + level * 3;
+      cageRef.current.rotation.y += delta * 0.08 * spin;
+      cageRef.current.rotation.x += delta * 0.03 * spin;
     }
   });
 

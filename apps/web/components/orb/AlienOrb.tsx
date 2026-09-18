@@ -15,6 +15,8 @@ export interface AlienOrbProps {
   size?: number;
   interactive?: boolean;
   className?: string;
+  /** 0–1 live voice amplitude; when provided, the orb pulses with it while keeping its look. */
+  audioLevelRef?: React.RefObject<number>;
 }
 
 export function AlienOrb({
@@ -23,6 +25,7 @@ export function AlienOrb({
   size = 1.4,
   interactive = true,
   className,
+  audioLevelRef,
 }: AlienOrbProps) {
   const chromaticOffset = useMemo(() => new Vector2(0.0006, 0.0012), []);
 
@@ -35,7 +38,7 @@ export function AlienOrb({
       >
         <Suspense fallback={null}>
           <ambientLight intensity={0.4} />
-          <OrbCore color={color} glowColor={glowColor} size={size} />
+          <OrbCore color={color} glowColor={glowColor} size={size} audioLevelRef={audioLevelRef} />
           <OrbRings size={size} glowColor={glowColor} />
           <OrbParticles size={size} color={glowColor} />
           <EffectComposer multisampling={0}>

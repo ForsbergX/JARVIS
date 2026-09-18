@@ -7,6 +7,13 @@
       "runtimeArgs": ["run", "dev", "--workspace=@jarvis/web"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "jarvis-server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace=@jarvis/server"],
+      "port": 4000,
+      "autoPort": true
     }
   ]
 }

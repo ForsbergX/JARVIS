@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
@@ -6,6 +7,7 @@ import {
   Agent,
   createDefaultToolRegistry,
   db,
+  synthesizeSpeech,
   type ChatMessage,
 } from "@jarvis/core";
 
@@ -22,6 +24,7 @@ app.get("/health", async () => ({ status: "ok" }));
 
 app.get("/ws", { websocket: true }, (socket) => {
   let conversationId: string | undefined;
+  const history: ChatMessage[] = [];
 
   socket.on("message", async (raw: Buffer) => {
     try {
@@ -31,18 +34,45 @@ app.get("/ws", { websocket: true }, (socket) => {
       };
 
       if (!conversationId) {
-        conversationId = data.conversationId ?? (await db.createConversation());
+        try {
+          conversationId = data.conversationId ?? (await db.createConversation());
+        } catch (error) {
+          app.log.warn(
+            { error },
+            "Postgres unavailable — continuing with in-memory history for this session"
+          );
+          conversationId = data.conversationId ?? randomUUID();
+        }
         socket.send(JSON.stringify({ type: "conversation", conversationId }));
       }
 
       const userMessage: ChatMessage = { role: "user", content: data.message };
-      await db.appendMessage(conversationId, userMessage);
+      history.push(userMessage);
+      await db.appendMessage(conversationId, userMessage).catch(() => {});
 
-      const history = await db.getHistory(conversationId);
       const reply = await agent.respond(history);
-      await db.appendMessage(conversationId, { role: "assistant", content: reply });
+      history.push({ role: "assistant", content: reply });
+      await db.appendMessage(conversationId, { role: "assistant", content: reply }).catch(() => {});
 
-      socket.send(JSON.stringify({ type: "message", role: "assistant", content: reply }));
+      let speech: Awaited<ReturnType<typeof synthesizeSpeech>> = null;
+      try {
+        speech = await synthesizeSpeech(reply);
+      } catch (error) {
+        app.log.warn(
+          { error },
+          "ElevenLabs TTS failed — check ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID"
+        );
+      }
+
+      socket.send(
+        JSON.stringify({
+          type: "message",
+          role: "assistant",
+          content: reply,
+          audio: speech?.audioBase64,
+          audioType: speech?.contentType,
+        })
+      );
     } catch (error) {
       app.log.error(error);
       socket.send(
