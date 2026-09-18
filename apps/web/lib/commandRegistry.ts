@@ -17,14 +17,16 @@ export const COMMAND_TO_PANEL: Partial<Record<CommandId, PanelId>> = {
   "open-bookings": "bookings",
 };
 
+// The only sentences a local dashboard command may ever speak — kept fixed
+// and short by design, never generated or extended.
 export const COMMAND_CONFIRMATIONS: Record<CommandId, string> = {
-  "open-google-ads": "Jag öppnar Google Ads.",
-  "open-finance": "Jag öppnar ekonomin.",
-  "open-tasks": "Jag visar dagens uppgifter.",
-  "open-traffic": "Jag öppnar webbtrafiken.",
-  "open-bookings": "Jag visar dagens jobb.",
-  "close-panel": "Jag stänger panelen.",
-  "show-overview": "Jag visar översikten.",
+  "open-google-ads": "Öppnar Google Ads.",
+  "open-finance": "Öppnar ekonomi.",
+  "open-tasks": "Öppnar uppgifter.",
+  "open-traffic": "Öppnar webbtrafik.",
+  "open-bookings": "Öppnar bokningar.",
+  "close-panel": "Stänger panelen.",
+  "show-overview": "Stänger panelen.",
 };
 
 interface CommandDefinition {
@@ -37,6 +39,12 @@ const COMMANDS: CommandDefinition[] = [
   {
     id: "open-google-ads",
     phrases: [
+      // Short keyword stems first — these alone match regardless of
+      // whatever else ("Jarvis,", "visa", "ta fram", "mina", ...)
+      // surrounds them in the sentence, since matching is substring-based.
+      "annons",
+      "google ads",
+      "ads",
       "öppna google ads",
       "visa google ads",
       "visa annonser",
@@ -50,6 +58,8 @@ const COMMANDS: CommandDefinition[] = [
   {
     id: "open-finance",
     phrases: [
+      "ekonomi",
+      "omsättning",
       "öppna ekonomi",
       "visa ekonomin",
       "företagets ekonomi",
@@ -62,6 +72,7 @@ const COMMANDS: CommandDefinition[] = [
   {
     id: "open-tasks",
     phrases: [
+      "uppgift",
       "öppna uppgifter",
       "visa uppgifter",
       "mina uppgifter",
@@ -75,6 +86,9 @@ const COMMANDS: CommandDefinition[] = [
   {
     id: "open-traffic",
     phrases: [
+      // "trafik" alone also matches "webbtrafik" and "hemsidetrafik" since
+      // both contain it as a substring.
+      "trafik",
       "öppna webbtrafik",
       "visa webbtrafik",
       "visa trafiken",
@@ -88,6 +102,8 @@ const COMMANDS: CommandDefinition[] = [
   {
     id: "open-bookings",
     phrases: [
+      "bokning",
+      "boka",
       "öppna bokningar",
       "visa bokningar",
       "visa mina bokningar",
@@ -103,6 +119,8 @@ const COMMANDS: CommandDefinition[] = [
     id: "close-panel",
     phrases: [
       "stäng panelen",
+      "stäng fliken",
+      "stäng flik",
       "gå tillbaka",
       "stäng",
       "close panel",
@@ -138,12 +156,19 @@ function fold(text: string): string {
 }
 
 export interface CommandMatch {
-  id: CommandId;
+  // Explicit rather than a null check on the return value itself — the
+  // caller must never be able to mistake "no local command" for "handled".
+  // When true, the caller MUST run the action + confirmation and MUST NOT
+  // forward the text to the AI/API afterward.
+  handled: boolean;
+  id: CommandId | null;
   panel: PanelId | null;
   confirmation: string;
 }
 
-export function matchCommand(rawText: string): CommandMatch | null {
+const NOT_HANDLED: CommandMatch = { handled: false, id: null, panel: null, confirmation: "" };
+
+export function matchCommand(rawText: string): CommandMatch {
   const normalized = normalize(rawText);
   const folded = fold(normalized);
 
@@ -153,6 +178,7 @@ export function matchCommand(rawText: string): CommandMatch | null {
       const foldedPhrase = fold(normalizedPhrase);
       if (normalized.includes(normalizedPhrase) || folded.includes(foldedPhrase)) {
         return {
+          handled: true,
           id: command.id,
           panel: COMMAND_TO_PANEL[command.id] ?? null,
           confirmation: COMMAND_CONFIRMATIONS[command.id],
@@ -161,5 +187,5 @@ export function matchCommand(rawText: string): CommandMatch | null {
     }
   }
 
-  return null;
+  return NOT_HANDLED;
 }

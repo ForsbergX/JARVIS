@@ -28,7 +28,7 @@ function hasWebGL(): boolean {
 
 export function EiraExperience() {
   const [webglAvailable, setWebglAvailable] = useState(true);
-  const { audioLevelRef } = useVoiceCommands();
+  const { audioLevelRef, handleMicPress } = useVoiceCommands();
 
   useEffect(() => {
     setWebglAvailable(hasWebGL());
@@ -74,7 +74,7 @@ export function EiraExperience() {
 
       <PanelStage />
 
-      <CommandInterface />
+      <CommandInterface onMicPress={handleMicPress} />
     </main>
   );
 }

@@ -52,6 +52,21 @@ export function useJarvisConnection() {
   const audioQueueRef = useRef<QueueItem[]>([]);
   const isPlayingRef = useRef(false);
 
+  // Identifies the single "live" utterance. Cancelling speechSynthesis still
+  // fires the cancelled utterance's onend/onerror in most browsers, so every
+  // handler checks its own id against this ref before acting — a stale
+  // callback from an interrupted utterance is simply ignored instead of
+  // advancing the queue a second time or reporting a false "speaking" state.
+  const utteranceGenerationRef = useRef(0);
+  // Only relevant to the dormant ElevenLabs clip path — tracked so
+  // interruptSpeech() can actually silence it, not just ignore its callbacks.
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // How many sentences of the CURRENT assistant response have been spoken —
+  // reset per user turn, capped so "vanliga röstsvar" never ramble past two.
+  const spokenSentenceCountRef = useRef(0);
+  const MAX_SPOKEN_SENTENCES = 2;
+
   useEffect(() => {
     voiceEnabledRef.current = voiceEnabled;
   }, [voiceEnabled]);
@@ -68,6 +83,11 @@ export function useJarvisConnection() {
         conversationIdRef.current = data.conversationId;
       } else if (data.type === "speech-chunk") {
         if (!voiceEnabledRef.current) return;
+        // Normal AI voice replies are capped at two spoken sentences per
+        // turn — later sentences in the same response still arrive and are
+        // stored in `messages`, they're just not spoken.
+        if (spokenSentenceCountRef.current >= MAX_SPOKEN_SENTENCES) return;
+        spokenSentenceCountRef.current += 1;
         if (data.audio && data.audioType) {
           enqueueClip(decodeAudio(data.audio, data.audioType));
         } else if (data.text) {
@@ -136,14 +156,18 @@ export function useJarvisConnection() {
   }
 
   function playSingleClip(audioUrl: string, onEnded: () => void, onStart?: () => void) {
+    const myGeneration = ++utteranceGenerationRef.current;
+    const stale = () => utteranceGenerationRef.current !== myGeneration;
+
     const audioCtx = audioCtxRef.current;
     const audio = new Audio(audioUrl);
+    activeAudioRef.current = audio;
 
     if (!audioCtx) {
       // No AudioContext yet (couldn't create one on the last user gesture) —
       // still play the voice, just without driving the brain's pulse.
-      audio.play().then(() => onStart?.()).catch(onEnded);
-      audio.onended = onEnded;
+      audio.play().then(() => !stale() && onStart?.()).catch(() => !stale() && onEnded());
+      audio.onended = () => !stale() && onEnded();
       return;
     }
 
@@ -155,6 +179,7 @@ export function useJarvisConnection() {
     analyser.connect(audioCtx.destination);
 
     function tick() {
+      if (stale()) return;
       analyser.getByteFrequencyData(data);
       let sum = 0;
       for (let i = 0; i < data.length; i++) sum += data[i];
@@ -163,10 +188,11 @@ export function useJarvisConnection() {
     }
 
     audio.play().then(() => {
+      if (stale()) return;
       onStart?.();
       tick();
-    }).catch(onEnded);
-    audio.onended = onEnded;
+    }).catch(() => !stale() && onEnded());
+    audio.onended = () => !stale() && onEnded();
   }
 
   /** Jarvis's primary voice: the browser's own TTS, tuned dark/calm/
@@ -176,12 +202,21 @@ export function useJarvisConnection() {
    * analyse, the brain's pulse is faked with a smooth oscillation for the
    * utterance's duration instead of sitting still. */
   async function playFallbackSpeech(text: string, onEnded: () => void, onStart?: () => void) {
+    // Identifies this call's utterance — checked before every callback below
+    // acts, so a cancelled/superseded utterance's late onend/onerror is a
+    // silent no-op instead of double-advancing the queue or reporting stale
+    // "speaking" state (see interruptSpeech).
+    const myGeneration = ++utteranceGenerationRef.current;
+    const stale = () => utteranceGenerationRef.current !== myGeneration;
+
     if (!("speechSynthesis" in window)) {
       onEnded();
       return;
     }
 
     const voices = await loadVoices();
+    if (stale()) return; // interrupted while voices were loading
+
     const voice = pickDarkMaleVoice(voices);
 
     const utterance = new SpeechSynthesisUtterance(text);
@@ -194,24 +229,29 @@ export function useJarvisConnection() {
     let pulseFrame = 0;
     let active = true;
     function pulse() {
-      if (!active) return;
+      if (!active || stale()) return;
       pulseFrame += 1;
       audioLevelRef.current = 0.28 + 0.22 * Math.abs(Math.sin(pulseFrame * 0.12));
       requestAnimationFrame(pulse);
     }
 
     const finish = () => {
+      if (stale()) return;
       active = false;
       onEnded();
     };
 
     utterance.onstart = () => {
+      if (stale()) return;
       onStart?.();
       pulse();
     };
     utterance.onend = finish;
     utterance.onerror = finish;
 
+    // Only one utterance may ever exist — cancel anything still queued or
+    // speaking in the engine itself before handing it a new one.
+    window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   }
 
@@ -221,6 +261,7 @@ export function useJarvisConnection() {
     if (!socket || socket.readyState !== WebSocket.OPEN || !content) return;
 
     ensureAudioContext();
+    spokenSentenceCountRef.current = 0; // new turn — reset the per-response speech cap
 
     setMessages((prev) => [...prev, { role: "user", content }]);
     setPending(true);
@@ -239,6 +280,21 @@ export function useJarvisConnection() {
     enqueueSpeech(text, onAudioStart);
   }
 
+  /** Immediately silences whatever Jarvis is saying (queued or currently
+   * speaking) — used when the user presses the mic to interrupt mid-reply.
+   * Never restarts speech on its own; the caller decides what happens next
+   * (typically: start listening). */
+  function interruptSpeech() {
+    utteranceGenerationRef.current += 1; // invalidate in-flight callbacks
+    window.speechSynthesis.cancel();
+    activeAudioRef.current?.pause();
+    activeAudioRef.current = null;
+    audioQueueRef.current = [];
+    isPlayingRef.current = false;
+    audioLevelRef.current = 0;
+    setSpeaking(false);
+  }
+
   return {
     messages,
     connected,
@@ -249,6 +305,7 @@ export function useJarvisConnection() {
     audioLevelRef,
     sendMessage,
     speakText,
+    interruptSpeech,
     ensureAudioContext,
     onAssistantText: (fn: (text: string) => void) => {
       onAssistantTextRef.current = fn;

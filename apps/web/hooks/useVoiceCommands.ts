@@ -12,19 +12,19 @@ import { useEiraStore } from "@/store/useEiraStore";
  * that short-circuits the AI for known dashboard actions, and drives the
  * Eira state machine (idle/listening/thinking/speaking/executing/success/error).
  *
- * Listening is fully hands-free: the mic starts on its own once permission
- * is granted, stops the instant an utterance is submitted (command or not),
- * and restarts on its own once Jarvis is done thinking and talking — no
- * button, no push-to-talk.
+ * Listening is manual: the mic never starts itself. handleMicPress() is the
+ * one entry point — pressed while idle it starts listening, pressed while
+ * Jarvis is talking it interrupts him (cancels speech immediately) and
+ * starts listening right away. Jarvis never starts a new utterance on his
+ * own, and always settles back to idle (VILAR) once a response finishes.
  */
 export function useVoiceCommands() {
   const connection = useJarvisConnection();
   const [listening, setListening] = useState(false);
   const [micSupported, setMicSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
-  // Guards the local-command path specifically: its panel-open sequencing
-  // has its own setTimeout delays not reflected in connection.pending/speaking,
-  // so it needs its own "still busy" flag in addition to those two.
+  // Guards submitText against re-entry while it's synchronously handling an
+  // utterance (matching + dispatching the action/confirmation or the AI call).
   const processingRef = useRef(false);
 
   const state = useEiraStore((s) => s.state);
@@ -92,7 +92,7 @@ export function useVoiceCommands() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection.messages.length]);
 
-  function submitText(text: string, speechEndAt: number = performance.now()) {
+  function submitText(text: string) {
     const trimmed = text.trim();
     if (!trimmed || processingRef.current) return;
     setTranscript(trimmed);
@@ -103,50 +103,22 @@ export function useVoiceCommands() {
     setListening(false);
 
     const match = matchCommand(trimmed);
-    const commandFoundAt = performance.now();
 
-    if (match) {
-      // Block any further command until Jarvis has finished responding to
-      // this one (the auto-restart effect also waits on speaking/pending,
-      // but the panel-open sequencing below has its own timers those two
-      // don't cover).
+    // A local dashboard command is fully self-contained: run the action,
+    // speak ONLY its fixed short confirmation, and stop — the AI/API is
+    // never invoked for this text, under any circumstance. This is the
+    // entire contract; there is no other path a matched command can take.
+    if (match.handled) {
       processingRef.current = true;
       const release = () => {
         processingRef.current = false;
       };
 
-      const logTiming = (label: string, panelOpenAt: number) => {
-        const voiceStartAt = performance.now();
-        // eslint-disable-next-line no-console
-        console.info(
-          `[voice-timing] "${trimmed}" -> ${label}: ` +
-            `speech-end→command-found ${(commandFoundAt - speechEndAt).toFixed(0)}ms, ` +
-            `command-found→panel-open ${(panelOpenAt - commandFoundAt).toFixed(0)}ms, ` +
-            `panel-open→voice-start ${(voiceStartAt - panelOpenAt).toFixed(0)}ms, ` +
-            `total ${(voiceStartAt - speechEndAt).toFixed(0)}ms`
-        );
-      };
-
-      if (match.id === "close-panel" || match.id === "show-overview") {
-        const panelOpenAt = performance.now();
-        closePanel();
-        connection
-          .speakText(match.confirmation, () => logTiming(match.id, panelOpenAt))
-          .finally(release);
-        return;
-      }
-
       if (match.panel) {
-        // Voice only decides WHICH panel and speaks the confirmation — the
-        // actual close-previous/update-state/animate-forward sequencing is
-        // owned entirely by the action system (lib/jarvisActions.ts), the
-        // same one a future AI tool-call would invoke. Voice starts
-        // immediately, in parallel with whatever animation runs.
-        openPanel(match.panel, () => logTiming(match.id, performance.now()));
-        connection.speakText(match.confirmation).finally(release);
-        return;
+        openPanel(match.panel);
+      } else {
+        closePanel();
       }
-
       connection.speakText(match.confirmation).finally(release);
       return;
     }
@@ -154,10 +126,13 @@ export function useVoiceCommands() {
     connection.sendMessage(trimmed);
   }
 
-  function startListening() {
-    if (processingRef.current || connection.speaking || connection.pending || listening) {
-      return;
-    }
+  function startListening(force = false) {
+    if (processingRef.current || listening) return;
+    // A forced start (mic pressed to interrupt) skips the speaking/pending
+    // check on purpose — the caller just cancelled that speech itself, and
+    // connection.speaking/pending in this closure won't reflect that until
+    // the next render.
+    if (!force && (connection.speaking || connection.pending)) return;
 
     const SpeechRecognitionCtor =
       (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
@@ -188,7 +163,7 @@ export function useVoiceCommands() {
     recognition.onresult = (event: any) => {
       const result = event.results[event.results.length - 1];
       if (result.isFinal) {
-        submitText(result[0].transcript, performance.now());
+        submitText(result[0].transcript);
       }
     };
     recognition.onerror = (event: any) => {
@@ -206,31 +181,27 @@ export function useVoiceCommands() {
       recognition.start();
       setListening(true);
     } catch {
-      // Already starting/started — the restart effect will retry if needed.
+      // Already starting/started.
     }
   }
 
-  // Hands-free auto-(re)start: whenever nothing is blocking it, make sure
-  // the mic is listening. Covers the very first start, and every restart
-  // after Jarvis finishes thinking + talking, or after a transient stop.
-  useEffect(() => {
-    const canListen =
-      micSupported &&
-      !listening &&
-      !processingRef.current &&
-      !connection.speaking &&
-      !connection.pending;
-
-    if (!canListen) return;
-
-    const timeout = setTimeout(() => startListening(), 250);
-    return () => clearTimeout(timeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [micSupported, listening, connection.speaking, connection.pending]);
+  /** The single entry point for the mic control. Idle: starts listening.
+   * Mid-speech: interrupts Jarvis immediately and starts listening right
+   * away. This is the only way listening ever starts — Jarvis never
+   * restarts the mic himself. */
+  function handleMicPress() {
+    if (connection.speaking) {
+      connection.interruptSpeech();
+      startListening(true);
+      return;
+    }
+    startListening();
+  }
 
   return {
     ...connection,
     listening,
     micSupported,
+    handleMicPress,
   };
 }
