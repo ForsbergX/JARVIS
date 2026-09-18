@@ -22,6 +22,25 @@ const agent = new Agent(tools);
 
 app.get("/health", async () => ({ status: "ok" }));
 
+// Speaks fixed confirmation text for local voice commands (e.g. "Google Ads
+// öppnat.") without invoking the Claude agent — no key ever reaches the client.
+app.post<{ Body: { text?: string } }>("/speak", async (request, reply) => {
+  const text = request.body?.text;
+  if (!text || !text.trim()) {
+    return reply.code(400).send({ error: "Missing text" });
+  }
+  try {
+    const speech = await synthesizeSpeech(text);
+    return { audio: speech?.audioBase64, audioType: speech?.contentType };
+  } catch (error) {
+    app.log.warn(
+      { error },
+      "ElevenLabs TTS failed for /speak — check ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID"
+    );
+    return { audio: undefined, audioType: undefined };
+  }
+});
+
 app.get("/ws", { websocket: true }, (socket) => {
   let conversationId: string | undefined;
   const history: ChatMessage[] = [];
