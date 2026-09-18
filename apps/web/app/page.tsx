@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { loadVoices, pickDarkMaleVoice } from "@/lib/fallbackVoice";
 
 const AlienOrb = dynamic(
   () => import("@/components/orb/AlienOrb").then((m) => m.AlienOrb),
@@ -38,6 +39,8 @@ export default function ChatPage() {
   const audioLevelRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const recognitionRef = useRef<any>(null);
+  const audioQueueRef = useRef<Array<{ kind: "clip" | "speech"; value: string }>>([]);
+  const isPlayingRef = useRef(false);
 
   useEffect(() => {
     voiceEnabledRef.current = voiceEnabled;
@@ -59,14 +62,17 @@ export default function ChatPage() {
       const data = JSON.parse(event.data);
       if (data.type === "conversation") {
         conversationIdRef.current = data.conversationId;
+      } else if (data.type === "speech-chunk") {
+        if (!voiceEnabledRef.current) {
+          // no-op
+        } else if (data.audio && data.audioType) {
+          enqueueClip(decodeAudio(data.audio, data.audioType));
+        } else if (data.text) {
+          enqueueSpeech(data.text);
+        }
       } else if (data.type === "message") {
         setPending(false);
-        const audioUrl =
-          data.audio && data.audioType ? decodeAudio(data.audio, data.audioType) : undefined;
-        setMessages((prev) => [...prev, { role: "assistant", content: data.content, audioUrl }]);
-        if (audioUrl && voiceEnabledRef.current) {
-          playWithVisualization(audioUrl);
-        }
+        setMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
       } else if (data.type === "error") {
         setPending(false);
         setMessages((prev) => [
@@ -90,14 +96,42 @@ export default function ChatPage() {
     return audioCtxRef.current;
   }
 
-  function playWithVisualization(audioUrl: string) {
+  // Sequential playback queue — streamed reply sentences arrive as separate
+  // chunks, so they're queued and played one after another, never overlapping.
+  function enqueueClip(audioUrl: string) {
+    audioQueueRef.current.push({ kind: "clip", value: audioUrl });
+    if (!isPlayingRef.current) playNextInQueue();
+  }
+
+  function enqueueSpeech(text: string) {
+    audioQueueRef.current.push({ kind: "speech", value: text });
+    if (!isPlayingRef.current) playNextInQueue();
+  }
+
+  function playNextInQueue() {
+    const next = audioQueueRef.current.shift();
+    if (!next) {
+      isPlayingRef.current = false;
+      audioLevelRef.current = 0;
+      return;
+    }
+    isPlayingRef.current = true;
+    if (next.kind === "clip") {
+      playWithVisualization(next.value, playNextInQueue);
+    } else {
+      playFallbackSpeech(next.value, playNextInQueue);
+    }
+  }
+
+  function playWithVisualization(audioUrl: string, onEnded: () => void) {
     const audioCtx = audioCtxRef.current;
     const audio = new Audio(audioUrl);
 
     if (!audioCtx) {
       // No AudioContext yet (couldn't create one on the last user gesture) —
       // still play the voice, just without driving the orb's pulse.
-      audio.play().catch(() => {});
+      audio.play().catch(onEnded);
+      audio.onended = onEnded;
       return;
     }
 
@@ -114,15 +148,46 @@ export default function ChatPage() {
       for (let i = 0; i < data.length; i++) sum += data[i];
       audioLevelRef.current = sum / data.length / 255;
       if (!audio.paused && !audio.ended) requestAnimationFrame(tick);
-      else audioLevelRef.current = 0;
     }
 
-    audio.play().then(tick).catch(() => {
-      audioLevelRef.current = 0;
-    });
-    audio.onended = () => {
-      audioLevelRef.current = 0;
+    audio.play().then(tick).catch(onEnded);
+    audio.onended = onEnded;
+  }
+
+  // Free, offline fallback when ElevenLabs has no credits or rejects the
+  // voice (402/quota) — the browser's own TTS, tuned dark/calm/robotic-ish
+  // via lowered pitch and rate, with a faked pulse driving the orb since
+  // speechSynthesis exposes no audio stream to analyse.
+  async function playFallbackSpeech(text: string, onEnded: () => void) {
+    if (!("speechSynthesis" in window)) {
+      onEnded();
+      return;
+    }
+    const voices = await loadVoices();
+    const voice = pickDarkMaleVoice(voices);
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = voice?.lang ?? "sv-SE";
+    utterance.pitch = 0.5;
+    utterance.rate = 0.9;
+    if (voice) utterance.voice = voice;
+
+    let pulseFrame = 0;
+    let active = true;
+    function pulse() {
+      if (!active) return;
+      pulseFrame += 1;
+      audioLevelRef.current = 0.28 + 0.22 * Math.abs(Math.sin(pulseFrame * 0.12));
+      requestAnimationFrame(pulse);
+    }
+    const finish = () => {
+      active = false;
+      onEnded();
     };
+    utterance.onstart = pulse;
+    utterance.onend = finish;
+    utterance.onerror = finish;
+    window.speechSynthesis.speak(utterance);
   }
 
   function sendMessage(overrideText?: string) {

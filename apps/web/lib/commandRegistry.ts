@@ -20,14 +20,14 @@ export const COMMAND_TO_PANEL: Partial<Record<CommandId, PanelId>> = {
 };
 
 export const COMMAND_CONFIRMATIONS: Record<CommandId, string> = {
-  "open-google-ads": "Google Ads öppnat.",
-  "open-customers": "Här är din kundbas.",
-  "open-finance": "Jag tar fram ekonomin.",
-  "open-tasks": "Dagens uppgifter är framför dig.",
-  "open-traffic": "Här är webbtrafiken.",
-  "open-bookings": "Här är bokningarna.",
-  "close-panel": "Återgår till huvudöversikten.",
-  "show-overview": "Här är översikten.",
+  "open-google-ads": "Jag öppnar Google Ads.",
+  "open-customers": "Jag visar kunderna.",
+  "open-finance": "Jag öppnar ekonomin.",
+  "open-tasks": "Jag visar dagens uppgifter.",
+  "open-traffic": "Jag öppnar webbtrafiken.",
+  "open-bookings": "Jag visar dagens jobb.",
+  "close-panel": "Jag stänger panelen.",
+  "show-overview": "Jag visar översikten.",
 };
 
 interface CommandDefinition {
@@ -41,11 +41,13 @@ const COMMANDS: CommandDefinition[] = [
     id: "open-google-ads",
     phrases: [
       "öppna google ads",
+      "visa google ads",
       "visa annonser",
+      "hur går annonserna",
+      "annonsstatistik",
       "ta fram annonserna",
       "open google ads",
       "show ads",
-      "visa google ads",
     ],
   },
   {
@@ -62,8 +64,10 @@ const COMMANDS: CommandDefinition[] = [
     id: "open-finance",
     phrases: [
       "öppna ekonomi",
-      "visa omsättningen",
       "visa ekonomin",
+      "företagets ekonomi",
+      "visa omsättningen",
+      "hur går företaget",
       "open finance",
       "show revenue",
     ],
@@ -72,8 +76,11 @@ const COMMANDS: CommandDefinition[] = [
     id: "open-tasks",
     phrases: [
       "öppna uppgifter",
-      "vad ska jag göra idag",
       "visa uppgifter",
+      "mina uppgifter",
+      "dagens uppgifter",
+      "att göra",
+      "vad ska jag göra idag",
       "open tasks",
       "what should i do today",
     ],
@@ -82,8 +89,11 @@ const COMMANDS: CommandDefinition[] = [
     id: "open-traffic",
     phrases: [
       "öppna webbtrafik",
-      "visa analytics",
       "visa webbtrafik",
+      "visa trafiken",
+      "hemsidans trafik",
+      "hur går hemsidan",
+      "visa analytics",
       "open traffic",
       "show analytics",
     ],
@@ -93,6 +103,11 @@ const COMMANDS: CommandDefinition[] = [
     phrases: [
       "öppna bokningar",
       "visa bokningar",
+      "visa mina bokningar",
+      "dagens bokningar",
+      "kommande bokningar",
+      "visa dagens jobb",
+      "öppna dagens jobb",
       "open bookings",
       "show bookings",
     ],

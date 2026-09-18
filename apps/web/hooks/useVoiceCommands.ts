@@ -10,12 +10,21 @@ import { useEiraStore } from "@/store/useEiraStore";
  * (chat + voice + audio-reactivity), adds a local voice/text command layer
  * that short-circuits the AI for known dashboard actions, and drives the
  * Eira state machine (idle/listening/thinking/speaking/executing/success/error).
+ *
+ * Listening is fully hands-free: the mic starts on its own once permission
+ * is granted, stops the instant an utterance is submitted (command or not),
+ * and restarts on its own once Jarvis is done thinking and talking — no
+ * button, no push-to-talk.
  */
 export function useVoiceCommands() {
   const connection = useJarvisConnection();
   const [listening, setListening] = useState(false);
   const [micSupported, setMicSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
+  // Guards the local-command path specifically: its panel-open sequencing
+  // has its own setTimeout delays not reflected in connection.pending/speaking,
+  // so it needs its own "still busy" flag in addition to those two.
+  const processingRef = useRef(false);
 
   const state = useEiraStore((s) => s.state);
   const setState = useEiraStore((s) => s.setState);
@@ -84,29 +93,87 @@ export function useVoiceCommands() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection.messages.length]);
 
-  function submitText(text: string) {
+  function submitText(text: string, speechEndAt: number = performance.now()) {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed || processingRef.current) return;
     setTranscript(trimmed);
 
+    // Stop listening the instant any utterance is submitted — command or
+    // not — so the mic is never open while Jarvis is thinking or talking.
+    recognitionRef.current?.stop();
+    setListening(false);
+
     const match = matchCommand(trimmed);
+    const commandFoundAt = performance.now();
+
     if (match) {
+      // Block any further command until Jarvis has finished responding to
+      // this one (the auto-restart effect also waits on speaking/pending,
+      // but the panel-open sequencing below has its own timers those two
+      // don't cover).
+      processingRef.current = true;
+      const release = () => {
+        processingRef.current = false;
+      };
+
+      const logTiming = (label: string, panelOpenAt: number) => {
+        const voiceStartAt = performance.now();
+        // eslint-disable-next-line no-console
+        console.info(
+          `[voice-timing] "${trimmed}" -> ${label}: ` +
+            `speech-end→command-found ${(commandFoundAt - speechEndAt).toFixed(0)}ms, ` +
+            `command-found→panel-open ${(panelOpenAt - commandFoundAt).toFixed(0)}ms, ` +
+            `panel-open→voice-start ${(voiceStartAt - panelOpenAt).toFixed(0)}ms, ` +
+            `total ${(voiceStartAt - speechEndAt).toFixed(0)}ms`
+        );
+      };
+
       if (match.id === "close-panel" || match.id === "show-overview") {
+        const panelOpenAt = performance.now();
         closePanel();
-      } else if (match.panel) {
-        openPanel(match.panel);
-        setTimeout(() => setState("success"), 650);
+        connection
+          .speakText(match.confirmation, () => logTiming(match.id, panelOpenAt))
+          .finally(release);
+        return;
       }
-      connection.speakText(match.confirmation);
+
+      if (match.panel) {
+        const targetPanel = match.panel;
+        const currentPanel = useEiraStore.getState().activePanel;
+
+        if (currentPanel && currentPanel !== targetPanel) {
+          // Close the open panel first, then bring the new one forward —
+          // a clean sequential swap instead of crossfading the two. Voice
+          // still starts immediately, in parallel with the close animation.
+          closePanel();
+          setTimeout(() => {
+            openPanel(targetPanel);
+            setTimeout(() => setState("success"), 650);
+          }, 500);
+          const closeStartedAt = performance.now();
+          connection
+            .speakText(match.confirmation, () => logTiming(match.id, closeStartedAt))
+            .finally(release);
+        } else {
+          openPanel(targetPanel);
+          const panelOpenAt = performance.now();
+          setTimeout(() => setState("success"), 650);
+          connection
+            .speakText(match.confirmation, () => logTiming(match.id, panelOpenAt))
+            .finally(release);
+        }
+        return;
+      }
+
+      connection.speakText(match.confirmation).finally(release);
       return;
     }
 
     connection.sendMessage(trimmed);
   }
 
-  function toggleListening() {
-    if (listening) {
-      recognitionRef.current?.stop();
+  function startListening() {
+    if (processingRef.current || connection.speaking || connection.pending || listening) {
       return;
     }
 
@@ -118,29 +185,70 @@ export function useVoiceCommands() {
       return;
     }
 
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch {
+        // already stopped
+      }
+      recognitionRef.current = null;
+    }
+
     connection.ensureAudioContext();
 
     const recognition = new SpeechRecognitionCtor();
     recognition.lang = "sv-SE";
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    // Hands-free: keep the session open across multiple utterances instead
+    // of stopping after the first one.
+    recognition.continuous = true;
+    recognition.interimResults = true;
 
     recognition.onresult = (event: any) => {
-      submitText(event.results[0][0].transcript);
+      const result = event.results[event.results.length - 1];
+      if (result.isFinal) {
+        submitText(result[0].transcript, performance.now());
+      }
     };
-    recognition.onerror = () => setListening(false);
+    recognition.onerror = (event: any) => {
+      setListening(false);
+      // Permission denied — stop trying automatically, don't spam prompts.
+      if (event?.error === "not-allowed" || event?.error === "service-not-allowed") {
+        setMicSupported(false);
+        setMicSupportedStore(false);
+      }
+    };
     recognition.onend = () => setListening(false);
 
     recognitionRef.current = recognition;
-    recognition.start();
-    setListening(true);
+    try {
+      recognition.start();
+      setListening(true);
+    } catch {
+      // Already starting/started — the restart effect will retry if needed.
+    }
   }
+
+  // Hands-free auto-(re)start: whenever nothing is blocking it, make sure
+  // the mic is listening. Covers the very first start, and every restart
+  // after Jarvis finishes thinking + talking, or after a transient stop.
+  useEffect(() => {
+    const canListen =
+      micSupported &&
+      !listening &&
+      !processingRef.current &&
+      !connection.speaking &&
+      !connection.pending;
+
+    if (!canListen) return;
+
+    const timeout = setTimeout(() => startListening(), 250);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [micSupported, listening, connection.speaking, connection.pending]);
 
   return {
     ...connection,
     listening,
     micSupported,
-    toggleListening,
-    submitText,
   };
 }

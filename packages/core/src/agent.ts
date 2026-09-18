@@ -5,7 +5,25 @@ import { ToolRegistry } from "./tools/registry.js";
 const MODEL = "claude-sonnet-4-5";
 const SYSTEM_PROMPT =
   "You are JARVIS, a capable assistant. Use the available tools when they " +
-  "help answer the request. Be direct and concise.";
+  "help answer the request. Be direct and concise — default to short, " +
+  "direct answers (1-3 sentences) unless the user asks for more detail.";
+
+// Matches a complete sentence at the start of the buffer (ending in . ! or ?
+// followed by whitespace/end), so streamed text can be handed to TTS one
+// sentence at a time instead of waiting for the whole reply.
+const SENTENCE_BOUNDARY = /^(.*?[.!?])(\s+|$)/s;
+
+function extractSentences(buffer: string): { sentences: string[]; rest: string } {
+  const sentences: string[] = [];
+  let rest = buffer;
+  let match: RegExpMatchArray | null;
+  while ((match = rest.match(SENTENCE_BOUNDARY))) {
+    const sentence = match[1].trim();
+    if (sentence) sentences.push(sentence);
+    rest = rest.slice(match[0].length);
+  }
+  return { sentences, rest };
+}
 
 export class Agent {
   private client: Anthropic;
@@ -19,7 +37,12 @@ export class Agent {
     this.tools = tools;
   }
 
-  async respond(history: ChatMessage[]): Promise<string> {
+  /**
+   * Streams the reply. When onSentence is given, it's called with each
+   * complete sentence as soon as the model produces it — the caller can
+   * start synthesizing/playing speech before the full reply is done.
+   */
+  async respond(history: ChatMessage[], onSentence?: (sentence: string) => void): Promise<string> {
     const messages: Anthropic.MessageParam[] = history.map((m) => ({
       role: m.role,
       content: m.content,
@@ -28,7 +51,7 @@ export class Agent {
     // Tool-calling loop: keep going while Claude asks for tools, stop once
     // it returns a plain text turn.
     for (let turn = 0; turn < 8; turn++) {
-      const response = await this.client.messages.create({
+      const stream = this.client.messages.stream({
         model: MODEL,
         max_tokens: 2048,
         system: SYSTEM_PROMPT,
@@ -36,11 +59,26 @@ export class Agent {
         messages,
       });
 
+      let sentenceBuffer = "";
+      if (onSentence) {
+        stream.on("text", (delta) => {
+          sentenceBuffer += delta;
+          const { sentences, rest } = extractSentences(sentenceBuffer);
+          sentenceBuffer = rest;
+          for (const sentence of sentences) onSentence(sentence);
+        });
+      }
+
+      const response = await stream.finalMessage();
+
       if (response.stop_reason !== "tool_use") {
-        return response.content
+        const fullText = response.content
           .filter((block): block is Anthropic.TextBlock => block.type === "text")
           .map((block) => block.text)
           .join("\n");
+        const remainder = sentenceBuffer.trim();
+        if (onSentence && remainder) onSentence(remainder);
+        return fullText;
       }
 
       messages.push({ role: "assistant", content: response.content });

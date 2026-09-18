@@ -22,22 +22,27 @@ const agent = new Agent(tools);
 
 app.get("/health", async () => ({ status: "ok" }));
 
-// Speaks fixed confirmation text for local voice commands (e.g. "Google Ads
-// öppnat.") without invoking the Claude agent — no key ever reaches the client.
+// Speaks fixed confirmation text for local voice commands (e.g. "Jag öppnar
+// ekonomin.") without invoking the Claude agent — no key ever reaches the client.
+// Always echoes back `text` too: if ElevenLabs audio is missing (quota/plan
+// issue), the client falls back to the browser's own speechSynthesis with
+// that same text, silently — the user never sees an error either way.
 app.post<{ Body: { text?: string } }>("/speak", async (request, reply) => {
   const text = request.body?.text;
   if (!text || !text.trim()) {
     return reply.code(400).send({ error: "Missing text" });
   }
+  const startedAt = Date.now();
   try {
     const speech = await synthesizeSpeech(text);
-    return { audio: speech?.audioBase64, audioType: speech?.contentType };
+    app.log.info({ ms: Date.now() - startedAt, text }, "/speak resolved");
+    return { audio: speech?.audioBase64, audioType: speech?.contentType, text };
   } catch (error) {
     app.log.warn(
-      { error },
-      "ElevenLabs TTS failed for /speak — check ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID"
+      { err: error },
+      "ElevenLabs TTS failed for /speak — check ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID / credits"
     );
-    return { audio: undefined, audioType: undefined };
+    return { audio: undefined, audioType: undefined, text };
   }
 });
 
@@ -57,7 +62,7 @@ app.get("/ws", { websocket: true }, (socket) => {
           conversationId = data.conversationId ?? (await db.createConversation());
         } catch (error) {
           app.log.warn(
-            { error },
+            { err: error },
             "Postgres unavailable — continuing with in-memory history for this session"
           );
           conversationId = data.conversationId ?? randomUUID();
@@ -69,29 +74,20 @@ app.get("/ws", { websocket: true }, (socket) => {
       history.push(userMessage);
       await db.appendMessage(conversationId, userMessage).catch(() => {});
 
-      const reply = await agent.respond(history);
+      // Sentences are sent to the client as soon as Claude produces them —
+      // the client's speechSynthesis (its primary, active voice) starts
+      // talking before the full reply is ready. No ElevenLabs call here:
+      // that's kept dormant in synthesizeSpeech/tts.ts, not part of the
+      // active voice flow.
+      const onSentence = (sentence: string) => {
+        socket.send(JSON.stringify({ type: "speech-chunk", text: sentence }));
+      };
+
+      const reply = await agent.respond(history, onSentence);
       history.push({ role: "assistant", content: reply });
       await db.appendMessage(conversationId, { role: "assistant", content: reply }).catch(() => {});
 
-      let speech: Awaited<ReturnType<typeof synthesizeSpeech>> = null;
-      try {
-        speech = await synthesizeSpeech(reply);
-      } catch (error) {
-        app.log.warn(
-          { error },
-          "ElevenLabs TTS failed — check ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID"
-        );
-      }
-
-      socket.send(
-        JSON.stringify({
-          type: "message",
-          role: "assistant",
-          content: reply,
-          audio: speech?.audioBase64,
-          audioType: speech?.contentType,
-        })
-      );
+      socket.send(JSON.stringify({ type: "message", role: "assistant", content: reply }));
     } catch (error) {
       app.log.error(error);
       socket.send(
@@ -109,10 +105,11 @@ async function start() {
     await db.initSchema();
   } catch (error) {
     app.log.warn(
-      { error },
+      { err: error },
       "Could not init DB schema on startup — check DATABASE_URL / that Postgres is running"
     );
   }
+
   await app.listen({ port: PORT, host: "0.0.0.0" });
 }
 

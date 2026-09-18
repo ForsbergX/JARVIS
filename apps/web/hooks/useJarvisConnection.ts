@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { loadVoices, pickDarkMaleVoice } from "@/lib/fallbackVoice";
 
 export interface JarvisMessage {
   role: "user" | "assistant";
@@ -9,7 +10,6 @@ export interface JarvisMessage {
 }
 
 const WS_URL = process.env.NEXT_PUBLIC_JARVIS_WS_URL ?? "ws://localhost:4000/ws";
-const API_URL = process.env.NEXT_PUBLIC_JARVIS_API_URL ?? "http://localhost:4000";
 
 function decodeAudio(base64: string, contentType: string): string {
   const binary = atob(base64);
@@ -19,11 +19,18 @@ function decodeAudio(base64: string, contentType: string): string {
   return URL.createObjectURL(blob);
 }
 
+type QueueItem =
+  | { kind: "clip"; url: string; onStart?: () => void }
+  | { kind: "speech"; text: string; onStart?: () => void };
+
 /**
  * Owns the WebSocket connection to the JARVIS backend, the Claude chat
- * round-trip, and ElevenLabs audio playback + live amplitude analysis.
- * Kept UI-agnostic so both the plain chat page and the Eira experience
- * can share the exact same working connection.
+ * round-trip, and voice playback + live amplitude analysis. The browser's
+ * own speechSynthesis is the active voice (no ElevenLabs network round-trip
+ * in the live flow) — the `clip`/ElevenLabs queue path is kept dormant in
+ * case a server response ever includes real audio again. Kept UI-agnostic
+ * so both the plain chat page and the Eira experience share the exact same
+ * working connection.
  */
 export function useJarvisConnection() {
   const [messages, setMessages] = useState<JarvisMessage[]>([]);
@@ -39,6 +46,12 @@ export function useJarvisConnection() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const onAssistantTextRef = useRef<((text: string) => void) | undefined>(undefined);
 
+  // Sequential playback queue — every voice output (ElevenLabs clips, the
+  // browser-speechSynthesis fallback, local-command confirmations) goes
+  // through this so nothing ever overlaps.
+  const audioQueueRef = useRef<QueueItem[]>([]);
+  const isPlayingRef = useRef(false);
+
   useEffect(() => {
     voiceEnabledRef.current = voiceEnabled;
   }, [voiceEnabled]);
@@ -53,15 +66,19 @@ export function useJarvisConnection() {
       const data = JSON.parse(event.data);
       if (data.type === "conversation") {
         conversationIdRef.current = data.conversationId;
+      } else if (data.type === "speech-chunk") {
+        if (!voiceEnabledRef.current) return;
+        if (data.audio && data.audioType) {
+          enqueueClip(decodeAudio(data.audio, data.audioType));
+        } else if (data.text) {
+          // ElevenLabs failed for this sentence (quota/plan) — fall back to
+          // the browser's own voice, silently, no error shown to the user.
+          enqueueSpeech(data.text);
+        }
       } else if (data.type === "message") {
         setPending(false);
-        const audioUrl =
-          data.audio && data.audioType ? decodeAudio(data.audio, data.audioType) : undefined;
-        setMessages((prev) => [...prev, { role: "assistant", content: data.content, audioUrl }]);
+        setMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
         onAssistantTextRef.current?.(data.content);
-        if (audioUrl && voiceEnabledRef.current) {
-          playWithVisualization(audioUrl);
-        }
       } else if (data.type === "error") {
         setPending(false);
         setMessages((prev) => [
@@ -85,21 +102,48 @@ export function useJarvisConnection() {
     return audioCtxRef.current;
   }
 
-  function playWithVisualization(audioUrl: string) {
-    const audioCtx = audioCtxRef.current;
-    const audio = new Audio(audioUrl);
+  /** Adds an ElevenLabs clip to the playback queue. onStart (optional) fires
+   * the moment THIS clip actually begins audible playback — used to measure
+   * real speech-start latency. */
+  function enqueueClip(audioUrl: string, onStart?: () => void) {
+    audioQueueRef.current.push({ kind: "clip", url: audioUrl, onStart });
+    if (!isPlayingRef.current) playNextInQueue();
+  }
 
-    setSpeaking(true);
-    const finish = () => {
+  /** Adds a browser-speechSynthesis fallback utterance to the same queue,
+   * so it never overlaps with ElevenLabs clips either. */
+  function enqueueSpeech(text: string, onStart?: () => void) {
+    audioQueueRef.current.push({ kind: "speech", text, onStart });
+    if (!isPlayingRef.current) playNextInQueue();
+  }
+
+  function playNextInQueue() {
+    const next = audioQueueRef.current.shift();
+    if (!next) {
+      isPlayingRef.current = false;
       audioLevelRef.current = 0;
       setSpeaking(false);
-    };
+      return;
+    }
+
+    isPlayingRef.current = true;
+    setSpeaking(true);
+    if (next.kind === "clip") {
+      playSingleClip(next.url, playNextInQueue, next.onStart);
+    } else {
+      playFallbackSpeech(next.text, playNextInQueue, next.onStart);
+    }
+  }
+
+  function playSingleClip(audioUrl: string, onEnded: () => void, onStart?: () => void) {
+    const audioCtx = audioCtxRef.current;
+    const audio = new Audio(audioUrl);
 
     if (!audioCtx) {
       // No AudioContext yet (couldn't create one on the last user gesture) —
       // still play the voice, just without driving the brain's pulse.
-      audio.play().catch(finish);
-      audio.onended = finish;
+      audio.play().then(() => onStart?.()).catch(onEnded);
+      audio.onended = onEnded;
       return;
     }
 
@@ -116,11 +160,59 @@ export function useJarvisConnection() {
       for (let i = 0; i < data.length; i++) sum += data[i];
       audioLevelRef.current = sum / data.length / 255;
       if (!audio.paused && !audio.ended) requestAnimationFrame(tick);
-      else finish();
     }
 
-    audio.play().then(tick).catch(finish);
-    audio.onended = finish;
+    audio.play().then(() => {
+      onStart?.();
+      tick();
+    }).catch(onEnded);
+    audio.onended = onEnded;
+  }
+
+  /** Jarvis's primary voice: the browser's own TTS, tuned dark/calm/
+   * robotic-ish via a low pitch and rate on the darkest available male
+   * voice (Swedish preferred, British English otherwise — see
+   * lib/fallbackVoice.ts). Since speechSynthesis exposes no audio stream to
+   * analyse, the brain's pulse is faked with a smooth oscillation for the
+   * utterance's duration instead of sitting still. */
+  async function playFallbackSpeech(text: string, onEnded: () => void, onStart?: () => void) {
+    if (!("speechSynthesis" in window)) {
+      onEnded();
+      return;
+    }
+
+    const voices = await loadVoices();
+    const voice = pickDarkMaleVoice(voices);
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = voice?.lang ?? "sv-SE";
+    utterance.pitch = 0.5;
+    utterance.rate = 0.9;
+    utterance.volume = 1;
+    if (voice) utterance.voice = voice;
+
+    let pulseFrame = 0;
+    let active = true;
+    function pulse() {
+      if (!active) return;
+      pulseFrame += 1;
+      audioLevelRef.current = 0.28 + 0.22 * Math.abs(Math.sin(pulseFrame * 0.12));
+      requestAnimationFrame(pulse);
+    }
+
+    const finish = () => {
+      active = false;
+      onEnded();
+    };
+
+    utterance.onstart = () => {
+      onStart?.();
+      pulse();
+    };
+    utterance.onend = finish;
+    utterance.onerror = finish;
+
+    window.speechSynthesis.speak(utterance);
   }
 
   function sendMessage(text: string) {
@@ -137,25 +229,14 @@ export function useJarvisConnection() {
     );
   }
 
-  /** Speaks fixed text via the backend's /speak endpoint, bypassing Claude
-   * entirely — used for instant local voice-command confirmations. */
-  async function speakText(text: string) {
+  /** Speaks fixed text via the browser's own voice, bypassing Claude and any
+   * backend round-trip entirely — used for instant local voice-command
+   * confirmations. onAudioStart (optional) fires once speech actually starts. */
+  async function speakText(text: string, onAudioStart?: () => void) {
     ensureAudioContext();
     setMessages((prev) => [...prev, { role: "assistant", content: text }]);
     if (!voiceEnabledRef.current) return;
-    try {
-      const res = await fetch(`${API_URL}/speak`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json();
-      if (data.audio && data.audioType) {
-        playWithVisualization(decodeAudio(data.audio, data.audioType));
-      }
-    } catch {
-      // Text confirmation already shown; voice is best-effort.
-    }
+    enqueueSpeech(text, onAudioStart);
   }
 
   return {

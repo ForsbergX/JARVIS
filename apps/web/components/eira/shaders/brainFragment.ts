@@ -31,11 +31,13 @@ void main() {
 
   vec3 nerveColor = mix(uSecondaryColor, uPrimaryColor, 0.15);
   vec3 core = mix(uPrimaryColor, nerveColor, veins);
-  float energy = 1.0 + uEnergyIntensity * 0.6 + uAudioLevel * 0.35;
-  vec3 rim = mix(uPrimaryColor, uSecondaryColor, clamp(uSpeakingIntensity * 0.5 + uAudioLevel * 0.4, 0.0, 1.0))
-    * fresnel * (0.75 + pulse * 0.35) * energy;
+  float energy = 1.0 + uEnergyIntensity * 0.4 + uAudioLevel * 0.22;
+  // Capped below 1.0 so the rim never fully bleaches to white — the violet
+  // structure stays readable even at full speaking intensity + loud audio.
+  float whiteMix = clamp(uSpeakingIntensity * 0.32 + uAudioLevel * 0.22, 0.0, 0.55);
+  vec3 rim = mix(uPrimaryColor, uSecondaryColor, whiteMix) * fresnel * (0.65 + pulse * 0.25) * energy;
 
-  vec3 color = core * (0.26 + veins * 0.26) * (1.0 + uEnergyIntensity * 0.25) + rim + uSecondaryColor * scan * 0.6;
+  vec3 color = core * (0.26 + veins * 0.26) * (1.0 + uEnergyIntensity * 0.18) + rim + uSecondaryColor * scan * 0.45;
 
   float alpha = clamp(fresnel * 0.85 + veins * 0.2 + 0.1 + scan * 0.25, 0.0, 1.0) * uOpacity;
 

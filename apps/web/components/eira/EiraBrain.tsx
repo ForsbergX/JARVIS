@@ -33,9 +33,9 @@ const STATE_TARGETS: Record<EiraState, StateTarget> = {
   idle: { pulse: 0, distortion: 0, energy: 0, thinking: 0, speaking: 0 },
   listening: { pulse: 0.15, distortion: 0.06, energy: 0.2, thinking: 0, speaking: 0 },
   thinking: { pulse: 0.1, distortion: 0.16, energy: 0.3, thinking: 1, speaking: 0 },
-  speaking: { pulse: 0.2, distortion: 0.1, energy: 0.35, thinking: 0, speaking: 1 },
-  executing: { pulse: 0.4, distortion: 0.22, energy: 0.55, thinking: 0.3, speaking: 0 },
-  success: { pulse: 0.45, distortion: 0.05, energy: 0.65, thinking: 0, speaking: 0 },
+  speaking: { pulse: 0.15, distortion: 0.08, energy: 0.2, thinking: 0, speaking: 1 },
+  executing: { pulse: 0.3, distortion: 0.18, energy: 0.35, thinking: 0.3, speaking: 0 },
+  success: { pulse: 0.35, distortion: 0.05, energy: 0.4, thinking: 0, speaking: 0 },
   error: { pulse: 0.3, distortion: 0.32, energy: 0.4, thinking: 0, speaking: 0 },
 };
 

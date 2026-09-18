@@ -5,11 +5,52 @@ export interface SpeechResult {
   contentType: string;
 }
 
+// Fixed confirmation phrases ("Jag öppnar ekonomin.", etc.) repeat constantly,
+// so their audio is cached in memory — avoids a real ElevenLabs round-trip
+// (300-800ms) on every panel command. Capped to stay bounded; in-flight
+// requests are deduped too, so two rapid identical calls only hit the API once.
+const MAX_CACHE_ENTRIES = 100;
+const resultCache = new Map<string, SpeechResult | null>();
+const inFlight = new Map<string, Promise<SpeechResult | null>>();
+
+function cacheKey(voiceId: string, text: string): string {
+  return `${voiceId}::${text}`;
+}
+
 export async function synthesizeSpeech(text: string): Promise<SpeechResult | null> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId = process.env.ELEVENLABS_VOICE_ID;
   if (!apiKey || !voiceId || !text.trim()) return null;
 
+  const key = cacheKey(voiceId, text);
+  const cached = resultCache.get(key);
+  if (cached !== undefined) return cached;
+
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+
+  const request = synthesizeSpeechUncached(text, apiKey, voiceId)
+    .then((result) => {
+      if (resultCache.size >= MAX_CACHE_ENTRIES) {
+        const oldestKey = resultCache.keys().next().value;
+        if (oldestKey !== undefined) resultCache.delete(oldestKey);
+      }
+      resultCache.set(key, result);
+      return result;
+    })
+    .finally(() => {
+      inFlight.delete(key);
+    });
+
+  inFlight.set(key, request);
+  return request;
+}
+
+async function synthesizeSpeechUncached(
+  text: string,
+  apiKey: string,
+  voiceId: string
+): Promise<SpeechResult | null> {
   const response = await fetch(`${ELEVENLABS_API_URL}/${voiceId}`, {
     method: "POST",
     headers: {
