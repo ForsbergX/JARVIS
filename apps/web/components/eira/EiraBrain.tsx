@@ -74,8 +74,10 @@ export function EiraBrain({ size = 1.6, audioLevelRef }: EiraBrainProps) {
     }
 
     if (groupRef.current) {
-      // Nudge aside (never hidden) when a panel takes the foreground.
-      const targetX = activePanel ? -size * 0.55 : 0;
+      // Nudge aside (never hidden) when a panel takes the foreground. The
+      // panel now docks on the right at up to 820px wide, so this shifts
+      // further than before to keep clear of it.
+      const targetX = activePanel ? -size * 1.15 : 0;
       groupRef.current.position.x = THREE.MathUtils.lerp(
         groupRef.current.position.x,
         targetX,
