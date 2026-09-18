@@ -19,7 +19,7 @@ export interface AlienOrbProps {
 
 export function AlienOrb({
   color = "#5b21b6",
-  glowColor = "#c4b5fd",
+  glowColor = "#a78bfa",
   size = 1.4,
   interactive = true,
   className,
@@ -40,9 +40,9 @@ export function AlienOrb({
           <OrbParticles size={size} color={glowColor} />
           <EffectComposer multisampling={0}>
             <Bloom
-              intensity={1.4}
-              luminanceThreshold={0.15}
-              luminanceSmoothing={0.4}
+              intensity={0.55}
+              luminanceThreshold={0.35}
+              luminanceSmoothing={0.25}
               mipmapBlur
             />
             <ChromaticAberration

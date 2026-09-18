@@ -20,7 +20,7 @@ export default function OrbPage() {
       }}
     >
       <div style={{ width: "min(80vw, 720px)", height: "min(80vw, 720px)" }}>
-        <AlienOrb color="#5b21b6" glowColor="#c4b5fd" size={1.4} />
+        <AlienOrb color="#5b21b6" glowColor="#a78bfa" size={1.4} />
       </div>
     </main>
   );

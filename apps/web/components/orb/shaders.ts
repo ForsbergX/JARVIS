@@ -111,13 +111,13 @@ void main() {
   float fresnel = pow(1.0 - clamp(dot(viewDir, vNormal), 0.0, 1.0), uFresnelPower);
 
   float pulse = 0.6 + 0.4 * sin(uTime * 1.6);
-  float veins = smoothstep(0.15, 0.9, vNoise * 0.5 + 0.5);
+  float veins = smoothstep(0.35, 0.95, vNoise * 0.5 + 0.5);
 
   vec3 core = mix(uColor, uGlowColor, veins);
-  vec3 rim = uGlowColor * fresnel * (1.4 + pulse * 0.6);
-  vec3 color = core * (0.55 + veins * 0.5) + rim;
+  vec3 rim = uGlowColor * fresnel * (0.9 + pulse * 0.5);
+  vec3 color = core * (0.32 + veins * 0.32) + rim;
 
-  float alpha = clamp(fresnel * 1.1 + veins * 0.35 + 0.15, 0.0, 1.0) * uOpacity;
+  float alpha = clamp(fresnel * 0.85 + veins * 0.22 + 0.08, 0.0, 1.0) * uOpacity;
 
   gl_FragColor = vec4(color, alpha);
 }
