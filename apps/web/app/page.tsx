@@ -30,15 +30,24 @@ export default function ChatPage() {
   const [connected, setConnected] = useState(false);
   const [pending, setPending] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [listening, setListening] = useState(false);
+  const [micSupported, setMicSupported] = useState(true);
   const socketRef = useRef<WebSocket | null>(null);
   const conversationIdRef = useRef<string | undefined>(undefined);
   const voiceEnabledRef = useRef(voiceEnabled);
   const audioLevelRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     voiceEnabledRef.current = voiceEnabled;
   }, [voiceEnabled]);
+
+  useEffect(() => {
+    const SpeechRecognitionCtor =
+      (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    setMicSupported(Boolean(SpeechRecognitionCtor));
+  }, []);
 
   useEffect(() => {
     const socket = new WebSocket(WS_URL);
@@ -69,6 +78,17 @@ export default function ChatPage() {
 
     return () => socket.close();
   }, []);
+
+  function ensureAudioContext(): AudioContext {
+    if (!audioCtxRef.current) {
+      const AudioCtx = window.AudioContext ?? (window as any).webkitAudioContext;
+      audioCtxRef.current = new AudioCtx();
+    }
+    if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  }
 
   function playWithVisualization(audioUrl: string) {
     const audioCtx = audioCtxRef.current;
@@ -105,25 +125,51 @@ export default function ChatPage() {
     };
   }
 
-  function sendMessage() {
+  function sendMessage(overrideText?: string) {
     const socket = socketRef.current;
-    if (!socket || socket.readyState !== WebSocket.OPEN || !input.trim()) return;
+    const content = (overrideText ?? input).trim();
+    if (!socket || socket.readyState !== WebSocket.OPEN || !content) return;
 
-    if (!audioCtxRef.current) {
-      const AudioCtx = window.AudioContext ?? (window as any).webkitAudioContext;
-      audioCtxRef.current = new AudioCtx();
-    }
-    if (audioCtxRef.current.state === "suspended") {
-      audioCtxRef.current.resume();
-    }
+    ensureAudioContext();
 
-    const content = input.trim();
     setMessages((prev) => [...prev, { role: "user", content }]);
     setInput("");
     setPending(true);
     socket.send(
       JSON.stringify({ conversationId: conversationIdRef.current, message: content })
     );
+  }
+
+  function toggleListening() {
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const SpeechRecognitionCtor =
+      (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) {
+      setMicSupported(false);
+      return;
+    }
+
+    ensureAudioContext();
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = "sv-SE";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      sendMessage(transcript);
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
   }
 
   return (
@@ -176,7 +222,23 @@ export default function ChatPage() {
         ))}
         {pending && <div style={{ color: "#888" }}>JARVIS is thinking…</div>}
       </div>
+      {!micSupported && (
+        <p style={{ color: "#b45309", fontSize: 13, marginTop: 8 }}>
+          Röstinmatning stöds inte i den här webbläsaren — använd Chrome eller Edge.
+        </p>
+      )}
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+        <button
+          onClick={toggleListening}
+          disabled={!connected || !micSupported}
+          style={{
+            background: listening ? "#dc2626" : undefined,
+            color: listening ? "white" : undefined,
+          }}
+          title={listening ? "Sluta lyssna" : "Prata med JARVIS"}
+        >
+          {listening ? "🔴 Lyssnar…" : "🎤"}
+        </button>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -184,7 +246,7 @@ export default function ChatPage() {
           placeholder="Say something to JARVIS"
           style={{ flex: 1, padding: 8 }}
         />
-        <button onClick={sendMessage} disabled={!connected}>
+        <button onClick={() => sendMessage()} disabled={!connected}>
           Send
         </button>
       </div>
