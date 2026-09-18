@@ -1,0 +1,13 @@
+{
+  "name": "jarvis",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "chat": "npm run chat --workspace=@jarvis/core",
+    "dev:web": "npm run dev --workspace=@jarvis/web"
+  }
+}
