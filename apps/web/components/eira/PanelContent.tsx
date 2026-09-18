@@ -11,32 +11,24 @@ import {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div
-        style={{
-          fontSize: 13,
-          opacity: 0.6,
-          letterSpacing: 0.5,
-          textTransform: "uppercase",
-          marginBottom: 6,
-        }}
-      >
+      <div style={{ fontSize: 11, opacity: 0.6, letterSpacing: 0.5, textTransform: "uppercase" }}>
         {label}
       </div>
-      <div style={{ fontSize: 34, color: eiraTokens.energyWhite, fontWeight: 600 }}>{value}</div>
+      <div style={{ fontSize: 22, color: eiraTokens.energyWhite, fontWeight: 600 }}>{value}</div>
     </div>
   );
 }
 
 function StatRow({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: "flex", gap: 36, flexWrap: "wrap" }}>{children}</div>;
+  return <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>{children}</div>;
 }
 
 function MiniTrend({ points, color }: { points: number[]; color: string }) {
   const max = Math.max(...points);
   const min = Math.min(...points);
   const range = max - min || 1;
-  const width = 260;
-  const height = 56;
+  const width = 200;
+  const height = 44;
   const step = width / (points.length - 1);
   const path = points
     .map((p, i) => `${i === 0 ? "M" : "L"}${i * step},${height - ((p - min) / range) * height}`)
@@ -44,7 +36,7 @@ function MiniTrend({ points, color }: { points: number[]; color: string }) {
 
   return (
     <svg width={width} height={height} style={{ overflow: "visible" }}>
-      <path d={path} fill="none" stroke={color} strokeWidth={2.5} opacity={0.85} />
+      <path d={path} fill="none" stroke={color} strokeWidth={2} opacity={0.85} />
     </svg>
   );
 }
@@ -79,16 +71,16 @@ export function PanelContent({ panel }: { panel: PanelId }) {
             <Stat label="Mål" value={`${d.goal.toLocaleString("sv-SE")} ${d.currency}`} />
           </StatRow>
           <div>
-            <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 8 }}>
+            <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 4 }}>
               MÅLUPPFYLLELSE {d.goalProgress}%
             </div>
-            <div style={{ width: 320, height: 8, background: "rgba(255,255,255,0.1)", borderRadius: 4 }}>
+            <div style={{ width: 220, height: 6, background: "rgba(255,255,255,0.1)", borderRadius: 3 }}>
               <div
                 style={{
                   width: `${d.goalProgress}%`,
                   height: "100%",
                   background: eiraTokens.violetBright,
-                  borderRadius: 4,
+                  borderRadius: 3,
                 }}
               />
             </div>
@@ -102,15 +94,14 @@ export function PanelContent({ panel }: { panel: PanelId }) {
       return (
         <>
           <div>
-            <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 10 }}>DAGENS UPPGIFTER</div>
+            <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 6 }}>DAGENS UPPGIFTER</div>
             {d.today.map((t) => (
               <div
                 key={t.id}
                 style={{
-                  fontSize: 16,
+                  fontSize: 14,
                   opacity: t.done ? 0.4 : 0.9,
                   textDecoration: t.done ? "line-through" : "none",
-                  marginBottom: 6,
                 }}
               >
                 {t.label}
@@ -118,11 +109,11 @@ export function PanelContent({ panel }: { panel: PanelId }) {
             ))}
           </div>
           <div>
-            <div style={{ fontSize: 13, color: eiraTokens.warning, marginBottom: 8, marginTop: 16 }}>
+            <div style={{ fontSize: 11, color: eiraTokens.warning, marginBottom: 4, marginTop: 10 }}>
               BRÅDSKANDE
             </div>
             {d.urgent.map((u) => (
-              <div key={u} style={{ fontSize: 16, opacity: 0.9, marginBottom: 6 }}>
+              <div key={u} style={{ fontSize: 14, opacity: 0.9 }}>
                 {u}
               </div>
             ))}
@@ -140,9 +131,9 @@ export function PanelContent({ panel }: { panel: PanelId }) {
             <Stat label="Formulärkonverteringar" value={String(d.formConversions)} />
           </StatRow>
           <div>
-            <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 10 }}>MEST BESÖKTA SIDOR</div>
+            <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 6 }}>MEST BESÖKTA SIDOR</div>
             {d.topPages.map((p) => (
-              <div key={p.path} style={{ fontSize: 16, opacity: 0.85, marginBottom: 6 }}>
+              <div key={p.path} style={{ fontSize: 14, opacity: 0.85 }}>
                 {p.path} — {p.views}
               </div>
             ))}
@@ -157,11 +148,11 @@ export function PanelContent({ panel }: { panel: PanelId }) {
         <>
           <Stat label="Nästa jobb" value={`${d.nextJob.customer} — ${d.nextJob.time}`} />
           <div>
-            <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 10, marginTop: 10 }}>
+            <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 6, marginTop: 6 }}>
               DAGENS SCHEMA
             </div>
             {d.today.map((b) => (
-              <div key={b.time} style={{ fontSize: 16, opacity: 0.85, marginBottom: 6 }}>
+              <div key={b.time} style={{ fontSize: 14, opacity: 0.85 }}>
                 {b.time} — {b.customer}
               </div>
             ))}

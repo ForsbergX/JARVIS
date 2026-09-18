@@ -30,7 +30,7 @@ function CameraRig() {
   useFrame((state, delta) => {
     const activePanel = useEiraStore.getState().activePanel;
     const parallaxStrength = reducedMotion.current ? 0 : 0.35;
-    const targetX = mouse.current.x * parallaxStrength + (activePanel ? -1.1 : 0);
+    const targetX = mouse.current.x * parallaxStrength + (activePanel ? -0.6 : 0);
     const targetY = -mouse.current.y * parallaxStrength * 0.5 + 0.1;
 
     const lerp = 1 - Math.pow(0.0008, delta);
