@@ -1,12 +1,6 @@
 import type { PanelId } from "@/store/useEiraStore";
 import { eiraTokens } from "@/lib/eiraTokens";
-import {
-  mockGoogleAds,
-  mockFinance,
-  mockTasks,
-  mockTraffic,
-  mockBookings,
-} from "@/lib/mockDashboardData";
+import { mockFinance, mockTasks, mockTraffic, mockBookings } from "@/lib/mockDashboardData";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -43,24 +37,8 @@ function MiniTrend({ points, color }: { points: number[]; color: string }) {
 
 export function PanelContent({ panel }: { panel: PanelId }) {
   switch (panel) {
-    case "ads": {
-      const d = mockGoogleAds;
-      return (
-        <>
-          <StatRow>
-            <Stat label="Budget idag" value={`${d.budgetToday} ${d.currency}`} />
-            <Stat label="Klick" value={String(d.clicks)} />
-            <Stat label="Konverteringar" value={String(d.conversions)} />
-          </StatRow>
-          <StatRow>
-            <Stat label="Konverteringsgrad" value={`${d.conversionRate}%`} />
-            <Stat label="Kostnad / konvertering" value={`${d.costPerConversion} ${d.currency}`} />
-            <Stat label="Status" value={d.campaignStatus} />
-          </StatRow>
-          <MiniTrend points={d.trend} color={eiraTokens.cyanAccent} />
-        </>
-      );
-    }
+    // "ads" is rendered by the dedicated GoogleAdsPanel component instead
+    // (see PanelStage) — it never reaches this switch while active.
     case "finance": {
       const d = mockFinance;
       return (
