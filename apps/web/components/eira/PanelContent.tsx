@@ -2,7 +2,6 @@ import type { PanelId } from "@/store/useEiraStore";
 import { eiraTokens } from "@/lib/eiraTokens";
 import {
   mockGoogleAds,
-  mockCustomers,
   mockFinance,
   mockTasks,
   mockTraffic,
@@ -44,7 +43,7 @@ function MiniTrend({ points, color }: { points: number[]; color: string }) {
 
 export function PanelContent({ panel }: { panel: PanelId }) {
   switch (panel) {
-    case "google-ads": {
+    case "ads": {
       const d = mockGoogleAds;
       return (
         <>
@@ -59,36 +58,6 @@ export function PanelContent({ panel }: { panel: PanelId }) {
             <Stat label="Status" value={d.campaignStatus} />
           </StatRow>
           <MiniTrend points={d.trend} color={eiraTokens.cyanAccent} />
-        </>
-      );
-    }
-    case "customers": {
-      const d = mockCustomers;
-      return (
-        <>
-          <StatRow>
-            <Stat label="Totalt antal kunder" value={String(d.total)} />
-            <Stat label="Återkommande" value={String(d.returning)} />
-            <Stat label="Nya denna månad" value={String(d.newThisMonth)} />
-          </StatRow>
-          <div>
-            <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 6 }}>SENASTE KUNDER</div>
-            {d.latest.map((c) => (
-              <div key={c.name} style={{ fontSize: 14, opacity: 0.85 }}>
-                {c.name} — <span style={{ opacity: 0.6 }}>{c.since}</span>
-              </div>
-            ))}
-          </div>
-          <div>
-            <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 6, marginTop: 10 }}>
-              KOMMANDE UPPFÖLJNINGAR
-            </div>
-            {d.upcomingFollowUps.map((f) => (
-              <div key={f.name} style={{ fontSize: 14, opacity: 0.85 }}>
-                {f.name} — <span style={{ opacity: 0.6 }}>{f.date}</span>
-              </div>
-            ))}
-          </div>
         </>
       );
     }

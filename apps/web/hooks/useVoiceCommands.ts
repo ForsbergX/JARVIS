@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useJarvisConnection } from "./useJarvisConnection";
 import { matchCommand } from "@/lib/commandRegistry";
+import { openPanel, closePanel } from "@/lib/jarvisActions";
 import { useEiraStore } from "@/store/useEiraStore";
 
 /**
@@ -33,8 +34,6 @@ export function useVoiceCommands() {
   const setMicSupportedStore = useEiraStore((s) => s.setMicSupported);
   const setTranscript = useEiraStore((s) => s.setTranscript);
   const setLastMessage = useEiraStore((s) => s.setLastMessage);
-  const openPanel = useEiraStore((s) => s.openPanel);
-  const closePanel = useEiraStore((s) => s.closePanel);
 
   useEffect(() => {
     const SpeechRecognitionCtor =
@@ -138,30 +137,13 @@ export function useVoiceCommands() {
       }
 
       if (match.panel) {
-        const targetPanel = match.panel;
-        const currentPanel = useEiraStore.getState().activePanel;
-
-        if (currentPanel && currentPanel !== targetPanel) {
-          // Close the open panel first, then bring the new one forward —
-          // a clean sequential swap instead of crossfading the two. Voice
-          // still starts immediately, in parallel with the close animation.
-          closePanel();
-          setTimeout(() => {
-            openPanel(targetPanel);
-            setTimeout(() => setState("success"), 650);
-          }, 500);
-          const closeStartedAt = performance.now();
-          connection
-            .speakText(match.confirmation, () => logTiming(match.id, closeStartedAt))
-            .finally(release);
-        } else {
-          openPanel(targetPanel);
-          const panelOpenAt = performance.now();
-          setTimeout(() => setState("success"), 650);
-          connection
-            .speakText(match.confirmation, () => logTiming(match.id, panelOpenAt))
-            .finally(release);
-        }
+        // Voice only decides WHICH panel and speaks the confirmation — the
+        // actual close-previous/update-state/animate-forward sequencing is
+        // owned entirely by the action system (lib/jarvisActions.ts), the
+        // same one a future AI tool-call would invoke. Voice starts
+        // immediately, in parallel with whatever animation runs.
+        openPanel(match.panel, () => logTiming(match.id, performance.now()));
+        connection.speakText(match.confirmation).finally(release);
         return;
       }
 

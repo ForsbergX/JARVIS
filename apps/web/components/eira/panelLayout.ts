@@ -10,12 +10,11 @@ export interface PanelLayoutEntry {
 }
 
 export const PANEL_LAYOUT: PanelLayoutEntry[] = [
-  { id: "google-ads", label: "Google Ads", slotX: -1, beamDirection: [-1, 0.15, -0.3] },
-  { id: "customers", label: "Kunder", slotX: -0.6, beamDirection: [-0.5, 0.3, -0.5] },
-  { id: "finance", label: "Ekonomi", slotX: -0.2, beamDirection: [-0.15, -0.25, -0.6] },
-  { id: "tasks", label: "Uppgifter", slotX: 0.2, beamDirection: [0.15, 0.3, -0.6] },
-  { id: "traffic", label: "Webbtrafik", slotX: 0.6, beamDirection: [0.5, -0.2, -0.5] },
-  { id: "bookings", label: "Bokningar", slotX: 1, beamDirection: [1, 0.1, -0.3] },
+  { id: "ads", label: "Google Ads", slotX: -0.8, beamDirection: [-1, 0.15, -0.3] },
+  { id: "finance", label: "Ekonomi", slotX: -0.4, beamDirection: [-0.15, -0.25, -0.6] },
+  { id: "tasks", label: "Uppgifter", slotX: 0, beamDirection: [0.15, 0.3, -0.6] },
+  { id: "traffic", label: "Webbtrafik", slotX: 0.4, beamDirection: [0.5, -0.2, -0.5] },
+  { id: "bookings", label: "Bokningar", slotX: 0.8, beamDirection: [1, 0.1, -0.3] },
 ];
 
 export function getPanelLayout(id: PanelId): PanelLayoutEntry {

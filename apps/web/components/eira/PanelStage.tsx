@@ -1,13 +1,12 @@
 "use client";
 
 import { useEiraStore } from "@/store/useEiraStore";
+import { openPanel, closePanel } from "@/lib/jarvisActions";
 import { PANEL_LAYOUT } from "./panelLayout";
 import { HologramPanel } from "./HologramPanel";
 
 export function PanelStage() {
   const activePanel = useEiraStore((s) => s.activePanel);
-  const openPanel = useEiraStore((s) => s.openPanel);
-  const closePanel = useEiraStore((s) => s.closePanel);
 
   return (
     <div

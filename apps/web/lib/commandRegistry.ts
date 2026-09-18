@@ -2,7 +2,6 @@ import type { PanelId } from "@/store/useEiraStore";
 
 export type CommandId =
   | "open-google-ads"
-  | "open-customers"
   | "open-finance"
   | "open-tasks"
   | "open-traffic"
@@ -11,8 +10,7 @@ export type CommandId =
   | "show-overview";
 
 export const COMMAND_TO_PANEL: Partial<Record<CommandId, PanelId>> = {
-  "open-google-ads": "google-ads",
-  "open-customers": "customers",
+  "open-google-ads": "ads",
   "open-finance": "finance",
   "open-tasks": "tasks",
   "open-traffic": "traffic",
@@ -21,7 +19,6 @@ export const COMMAND_TO_PANEL: Partial<Record<CommandId, PanelId>> = {
 
 export const COMMAND_CONFIRMATIONS: Record<CommandId, string> = {
   "open-google-ads": "Jag öppnar Google Ads.",
-  "open-customers": "Jag visar kunderna.",
   "open-finance": "Jag öppnar ekonomin.",
   "open-tasks": "Jag visar dagens uppgifter.",
   "open-traffic": "Jag öppnar webbtrafiken.",
@@ -48,16 +45,6 @@ const COMMANDS: CommandDefinition[] = [
       "ta fram annonserna",
       "open google ads",
       "show ads",
-    ],
-  },
-  {
-    id: "open-customers",
-    phrases: [
-      "öppna kunder",
-      "visa kundbasen",
-      "visa kunder",
-      "open customers",
-      "show customers",
     ],
   },
   {

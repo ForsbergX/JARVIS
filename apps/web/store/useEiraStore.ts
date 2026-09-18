@@ -9,22 +9,9 @@ export type EiraState =
   | "success"
   | "error";
 
-export type PanelId =
-  | "google-ads"
-  | "customers"
-  | "finance"
-  | "tasks"
-  | "traffic"
-  | "bookings";
+export type PanelId = "bookings" | "tasks" | "traffic" | "ads" | "finance";
 
-export const PANEL_IDS: PanelId[] = [
-  "google-ads",
-  "customers",
-  "finance",
-  "tasks",
-  "traffic",
-  "bookings",
-];
+export const PANEL_IDS: PanelId[] = ["bookings", "tasks", "traffic", "ads", "finance"];
 
 export type Quality = "high" | "low";
 
@@ -32,9 +19,12 @@ interface EiraStore {
   state: EiraState;
   setState: (state: EiraState) => void;
 
+  // Pure state only — no timing/sequencing. The public openPanel/closePanel
+  // API that voice commands and (later) AI tool-calls use lives in
+  // lib/jarvisActions.ts, built on top of these two primitives.
   activePanel: PanelId | null;
-  openPanel: (panel: PanelId) => void;
-  closePanel: () => void;
+  activatePanel: (panel: PanelId) => void;
+  deactivatePanel: () => void;
 
   transcript: string;
   setTranscript: (text: string) => void;
@@ -60,8 +50,8 @@ export const useEiraStore = create<EiraStore>((set) => ({
   setState: (state) => set({ state }),
 
   activePanel: null,
-  openPanel: (panel) => set({ activePanel: panel, state: "executing" }),
-  closePanel: () => set({ activePanel: null, state: "idle" }),
+  activatePanel: (panel) => set({ activePanel: panel, state: "executing" }),
+  deactivatePanel: () => set({ activePanel: null, state: "idle" }),
 
   transcript: "",
   setTranscript: (transcript) => set({ transcript }),
