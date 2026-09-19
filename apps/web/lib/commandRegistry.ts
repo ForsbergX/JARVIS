@@ -143,7 +143,7 @@ const COMMANDS: CommandDefinition[] = [
   },
 ];
 
-function normalize(text: string): string {
+export function normalize(text: string): string {
   return text
     .toLowerCase()
     .normalize("NFD")

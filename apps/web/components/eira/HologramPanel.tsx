@@ -49,10 +49,17 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
   const dormantLeft = isSmallScreen ? mobileLeft : `${50 + panel.slotX * 34}%`;
   const dormantTop = isSmallScreen ? mobileTop : "82%";
   const dormantRotateY = isSmallScreen ? 0 : panel.slotX * -14;
-  // Kept much closer to full size than the old 0.42/0.5 (which made text
-  // barely legible) — bounded by not overlapping the next card at the
-  // width where the fan-out layout is still active (see SMALL_SCREEN_QUERY).
-  const dormantScale = dimmed ? 0.62 : 0.75;
+  // No shrink: width/min-height/font-sizes below are meant to be the true
+  // rendered sizes, not something further reduced by a scale transform —
+  // that compounding (small base size * scale) is what made the cards
+  // unreadable before. The dormant/active distinction on hover is a small
+  // scale nudge, not a resting-state one.
+  const dormantScale = 1;
+  // Dimmed (another panel is open) is conveyed via background/border alpha
+  // only, never via the card's own opacity — the whole card, including its
+  // text, must stay at >=0.92 opacity at all times per spec.
+  const dormantBackground = dimmed ? "rgba(10, 4, 22, 0.68)" : "rgba(10, 4, 22, 0.85)";
+  const dormantBorderColor = dimmed ? "rgba(192, 132, 252, 0.32)" : "rgba(192, 132, 252, 0.55)";
 
   return (
     <motion.div
@@ -75,23 +82,26 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
           : {
               left: dormantLeft,
               top: dormantTop,
-              width: "clamp(180px, 12vw, 220px)",
+              width: "clamp(175px, 12vw, 220px)",
               x: "-50%",
               y: "-50%",
               scale: dormantScale,
-              opacity: dimmed ? 0.25 : 0.55,
+              // >=0.92 at all times, even dimmed — the "other panel is
+              // open" cue lives in background/border alpha instead (see
+              // dormantBackground/dormantBorderColor), never in opacity or
+              // a blur filter on the card itself, so text stays crisp.
+              opacity: dimmed ? 0.92 : 1,
               rotateY: dormantRotateY,
-              filter: dimmed ? "blur(4px)" : "blur(1.5px)",
-              zIndex: 5,
+              filter: "none",
+              zIndex: 15,
             }
       }
       whileHover={
         active
           ? undefined
           : {
-              opacity: 0.95,
-              scale: dormantScale + 0.06,
-              filter: "blur(0px)",
+              opacity: 1,
+              scale: dormantScale + 0.04,
             }
       }
       transition={{ type: "spring", stiffness: 120, damping: 18, mass: 0.9 }}
@@ -104,21 +114,19 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
         transformStyle: "preserve-3d",
         cursor: active ? "default" : "pointer",
         boxSizing: "border-box",
-        background: eiraTokens.panelBackground,
+        background: active ? eiraTokens.panelBackground : dormantBackground,
         border: active
           ? `1px solid ${eiraTokens.panelBorder}`
-          : `1.5px solid ${dimmed ? "rgba(192, 132, 252, 0.28)" : "rgba(192, 132, 252, 0.5)"}`,
+          : `1.5px solid ${dormantBorderColor}`,
         borderRadius: 14,
-        padding: active ? 24 : 20,
-        minHeight: active ? undefined : 82,
+        padding: active ? 24 : "16px 18px",
+        minHeight: active ? undefined : 88,
         color: eiraTokens.energyWhite,
         fontFamily: "system-ui, sans-serif",
         backdropFilter: "blur(10px)",
         boxShadow: active
           ? `0 0 40px ${eiraTokens.violetPrimary}55, inset 0 0 1px ${eiraTokens.violetBright}`
-          : dimmed
-            ? "none"
-            : `0 0 16px ${eiraTokens.violetPrimary}40, 0 0 6px ${eiraTokens.cyanAccent}30, inset 0 0 10px rgba(103, 232, 249, 0.06)`,
+          : `0 0 16px ${eiraTokens.violetPrimary}40, 0 0 6px ${eiraTokens.cyanAccent}30, inset 0 0 10px rgba(103, 232, 249, 0.06)`,
         pointerEvents: "auto",
       }}
     >
@@ -129,7 +137,7 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
           textTransform: "uppercase",
           color: eiraTokens.violetBright,
           marginBottom: active ? 16 : 6,
-          opacity: 0.9,
+          opacity: active ? 0.9 : 1,
         }}
       >
         {panel.label}
@@ -139,7 +147,9 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
           <PanelContent panel={panel.id} />
         </div>
       ) : (
-        <div style={{ fontSize: 12.5, opacity: 0.7, lineHeight: 1.4 }}>{panel.subtitle}</div>
+        <div style={{ fontSize: 12.5, opacity: 0.85, lineHeight: 1.4, color: eiraTokens.energyWhite }}>
+          {panel.subtitle}
+        </div>
       )}
     </motion.div>
   );

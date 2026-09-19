@@ -2,11 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useJarvisConnection } from "./useJarvisConnection";
-import { matchCommand } from "@/lib/commandRegistry";
+import { matchCommand, normalize } from "@/lib/commandRegistry";
 import { openPanel, closePanel } from "@/lib/jarvisActions";
 import { useEiraStore } from "@/store/useEiraStore";
 
-const NOT_UNDERSTOOD_REPLY = "Jag uppfattade inte panelen. Försök igen.";
+// TEMP diagnostic logging for the speech pipeline — remove once voice
+// recognition is confirmed working end-to-end (see PROBLEM 1 fix notes).
+const DEBUG_VOICE = true;
+function voiceLog(...args: unknown[]) {
+  if (DEBUG_VOICE) console.log("[voice]", ...args);
+}
+
 const RESTART_DELAY_AFTER_SPEECH_MS = 600;
 const RESTART_DELAY_AFTER_INTERRUPT_MS = 300;
 const RETRY_BASE_DELAY_MS = 500;
@@ -17,11 +23,12 @@ const RETRY_MAX_DELAY_MS = 5000;
  *
  * State machine: IDLE -> LISTENING -> PROCESSING -> SPEAKING -> (~600ms) ->
  * LISTENING. The mic never runs while Jarvis talks, and Jarvis never starts
- * talking on his own — every utterance is either a fixed local-command
- * confirmation or the fixed "didn't understand" reply. There is no manual
- * mic control: recognition starts itself on mount, and restarts itself
- * after every response. The only user-facing controls are the Escape key
- * and clicking the orb, both of which interrupt Jarvis mid-speech and start
+ * talking on his own. Every recognized alternative is checked against the
+ * local dashboard commands first; only if none of them match does the
+ * utterance go to the normal AI conversation. There is no manual mic
+ * control: recognition starts itself on mount, and restarts itself after
+ * every response. The only user-facing controls are the Escape key and
+ * clicking the orb, both of which interrupt Jarvis mid-speech and start
  * listening again almost immediately.
  */
 export function useVoiceCommands() {
@@ -36,6 +43,11 @@ export function useVoiceCommands() {
   // acting on outdated state.
   const sessionIdRef = useRef(0);
   const isRecognitionActiveRef = useRef(false);
+  // Some browsers can fire onresult more than once for a single session
+  // despite continuous=false — without this, a second firing would call
+  // handleUtterance again and queue a second reply on top of the first,
+  // which looks exactly like "won't stop talking".
+  const resultHandledRef = useRef(false);
   // True while an onend is expected as a direct result of something WE did
   // (got a result, aborted to replace the instance) — distinguishes a normal
   // stop from an unexpected one that should trigger retry/backoff.
@@ -117,6 +129,15 @@ export function useVoiceCommands() {
     connectionRef.current.speakText(text);
   }
 
+  /** AI fallback for speech that didn't match any local dashboard command.
+   * Goes through the normal chat round-trip (packages/core Agent), whose
+   * reply streams back and is spoken the same way a local confirmation is —
+   * so the natural-end restart below applies here too. */
+  function sendToAI(text: string) {
+    expectingNaturalEndRef.current = true;
+    connectionRef.current.sendMessage(text);
+  }
+
   /** Cancels whatever Jarvis is saying and starts listening again shortly
    * after — used by Escape and by clicking the orb. No-op if he isn't
    * currently talking. */
@@ -145,25 +166,30 @@ export function useVoiceCommands() {
     setTranscript(primary);
     setState("thinking");
 
+    voiceLog("alternatives (raw):", alternatives);
+
     let match = matchCommand("");
+    let matchedAlt = "";
     for (const alt of alternatives) {
       const candidate = matchCommand(alt);
-      if (candidate.handled) {
+      voiceLog(`  raw="${alt}" normalized="${normalize(alt)}" handled=${candidate.handled} panel=${candidate.panel ?? "-"}`);
+      if (candidate.handled && !match.handled) {
         match = candidate;
-        break;
+        matchedAlt = alt;
       }
     }
 
-    // A local dashboard command is fully self-contained: run the action,
-    // speak ONLY its fixed short confirmation. An unrecognized utterance
-    // gets the same fixed short reply — never a long AI response — so a
-    // misheard command can't spiral into an unrelated ramble.
+    // Dashboard commands are always matched locally first, across every
+    // recognition alternative — only if NONE of them match anything does
+    // this fall through to the normal AI conversation.
     if (match.handled) {
+      voiceLog(`MATCHED command="${match.id}" panel=${match.panel ?? "-"} via alternative="${matchedAlt}"`);
       if (match.panel) openPanel(match.panel);
       else closePanel();
       speak(match.confirmation);
     } else {
-      speak(NOT_UNDERSTOOD_REPLY);
+      voiceLog("no local command matched — falling back to AI with:", primary);
+      sendToAI(primary);
     }
   }
 
@@ -189,6 +215,20 @@ export function useVoiceCommands() {
     // start() calls.
     if (isRecognitionActiveRef.current) return;
 
+    // HARD invariant, enforced here rather than trusted at every call site:
+    // the mic must never be live while Jarvis is talking, or it can pick up
+    // his own voice from the speakers as "user speech" and trigger a new
+    // reply — a self-feeding loop that looks exactly like refusing to stop
+    // talking. Every caller (mount, natural-end restart, interrupt, retry)
+    // funnels through this one function, so checking once here covers all
+    // of them. If blocked, don't just give up — keep checking until he's
+    // actually done, so listening always eventually resumes.
+    if (connectionRef.current.speaking) {
+      voiceLog("startListening deferred — Jarvis is still speaking");
+      window.setTimeout(() => startListening(), 250);
+      return;
+    }
+
     const SpeechRecognitionCtor =
       (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionCtor) {
@@ -201,13 +241,16 @@ export function useVoiceCommands() {
     connectionRef.current.ensureAudioContext();
 
     const mySessionId = ++sessionIdRef.current;
+    resultHandledRef.current = false;
     const recognition = new SpeechRecognitionCtor();
     recognition.lang = "sv-SE";
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 5;
+    voiceLog(`starting recognition #${mySessionId} (lang=sv-SE)`);
 
     recognition.onstart = () => {
+      voiceLog(`#${mySessionId} onstart`);
       if (sessionIdRef.current !== mySessionId) return;
       isRecognitionActiveRef.current = true;
       retryCountRef.current = 0;
@@ -215,20 +258,29 @@ export function useVoiceCommands() {
       setNeedsActivation(false);
       setListening(true);
     };
+    recognition.onaudiostart = () => voiceLog(`#${mySessionId} onaudiostart`);
+    recognition.onspeechstart = () => voiceLog(`#${mySessionId} onspeechstart`);
 
     recognition.onresult = (event: any) => {
       if (sessionIdRef.current !== mySessionId) return;
+      if (resultHandledRef.current) {
+        voiceLog(`#${mySessionId} onresult fired again for the same session — ignored`);
+        return;
+      }
+      resultHandledRef.current = true;
       expectedEndRef.current = true;
       const result = event.results[0];
       const alternatives: string[] = [];
       for (let i = 0; i < result.length; i++) {
         alternatives.push(result[i].transcript);
       }
+      voiceLog(`#${mySessionId} onresult`, alternatives);
       setListening(false);
       handleUtterance(alternatives);
     };
 
     recognition.onerror = (event: any) => {
+      voiceLog(`#${mySessionId} onerror`, event?.error);
       if (sessionIdRef.current !== mySessionId) return;
       isRecognitionActiveRef.current = false;
       setListening(false);
@@ -250,6 +302,7 @@ export function useVoiceCommands() {
     };
 
     recognition.onend = () => {
+      voiceLog(`#${mySessionId} onend (expected=${expectedEndRef.current})`);
       if (sessionIdRef.current !== mySessionId) return;
       isRecognitionActiveRef.current = false;
       setListening(false);
@@ -263,7 +316,8 @@ export function useVoiceCommands() {
     recognitionRef.current = recognition;
     try {
       recognition.start();
-    } catch {
+    } catch (err) {
+      voiceLog(`#${mySessionId} start() threw`, err);
       // Stray double-start (InvalidStateError) — recover via retry/backoff
       // rather than getting stuck.
       isRecognitionActiveRef.current = false;
@@ -274,14 +328,37 @@ export function useVoiceCommands() {
   // Try to go hands-free the moment the dashboard mounts. If the browser
   // blocks it (no prior user gesture), onerror above flips needsActivation
   // on and the one-time "AKTIVERA JARVIS" button takes over.
+  //
+  // ROOT CAUSE (PROBLEM 1): React's StrictMode (on by default in Next.js,
+  // no override in next.config.mjs) double-invokes this effect in dev —
+  // mount, cleanup, mount again, synchronously. The cleanup used to call
+  // abortCurrentRecognition() on a SpeechRecognition instance that had just
+  // been start()-ed moments earlier, before it had finished initializing.
+  // Chrome's Web Speech implementation doesn't handle a start()->abort()
+  // this rapid cleanly: the SECOND instance's onstart still fires normally
+  // (so the UI shows LYSSNAR), but its underlying audio pipeline never
+  // properly attaches, so speech is silently never recognized — matching
+  // the reported symptom exactly. Fix: defer the actual start by a tick via
+  // a cancellable timeout, so StrictMode's throwaway mount/cleanup cycle
+  // resolves (schedule -> cancel -> schedule) before any real
+  // SpeechRecognition instance is ever created.
   useEffect(() => {
     const SpeechRecognitionCtor =
       (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     setMicSupported(Boolean(SpeechRecognitionCtor));
     setMicSupportedStore(Boolean(SpeechRecognitionCtor));
-    if (SpeechRecognitionCtor) startListening();
+
+    let cancelled = false;
+    let startTimeout: ReturnType<typeof setTimeout> | null = null;
+    if (SpeechRecognitionCtor) {
+      startTimeout = setTimeout(() => {
+        if (!cancelled) startListening();
+      }, 0);
+    }
 
     return () => {
+      cancelled = true;
+      if (startTimeout) clearTimeout(startTimeout);
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       abortCurrentRecognition();
     };
