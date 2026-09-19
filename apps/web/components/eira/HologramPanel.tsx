@@ -79,7 +79,10 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
   // a 414px phone. Sized to match the GoogleAds/Finance dedicated panels'
   // own mobile treatment (92vw, 75vh scroll cap) so all five tabs feel
   // consistent when opened on a phone.
-  const activeLeft = isSmallScreen ? "50%" : "58%";
+  // Centered on every screen size — previously 58% on desktop, which (along
+  // with the orb's own camera offset, since removed in EiraScene) pushed
+  // Eira toward the right edge instead of leaving her the focal point.
+  const activeLeft = "50%";
   const activeWidth = isSmallScreen ? "92vw" : "min(46vw, 620px)";
 
   return (

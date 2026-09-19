@@ -240,12 +240,14 @@ export function GoogleAdsPanel({ active }: GoogleAdsPanelProps) {
     //
     // Static positioning wrapper below — plain CSS transform, never
     // animated, so percentage centering doesn't fight with animated `scale`.
+    // Centered on every screen size (not just mobile) so the panel frames
+    // Eira/the orb instead of pushing her toward the right edge — the orb's
+    // own camera no longer offsets for an active panel either (EiraScene).
     <div
       style={{
         position: "absolute",
         top: "50%",
-        right: isSmallScreen ? "auto" : "2%",
-        left: isSmallScreen ? "50%" : "auto",
+        left: "50%",
         width: isSmallScreen ? "92vw" : "clamp(720px, 48vw, 920px)",
         // 520 was sized for a desktop viewport — on a phone-height screen it
         // forces the panel to ~93% of the viewport regardless of maxHeight,
@@ -255,7 +257,7 @@ export function GoogleAdsPanel({ active }: GoogleAdsPanelProps) {
         minHeight: isSmallScreen ? 320 : 520,
         maxHeight: "75vh",
         zIndex: 25,
-        transform: isSmallScreen ? "translate(-50%, -50%)" : "translateY(-50%)",
+        transform: "translate(-50%, -50%)",
       }}
     >
       <motion.div

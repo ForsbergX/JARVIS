@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { loadVoices, pickDarkMaleVoice } from "@/lib/fallbackVoice";
+import { loadVoices, pickDarkMaleVoice, stripMarkdownForSpeech } from "@/lib/fallbackVoice";
 import { getUIContext } from "@/lib/uiContext";
 
 export interface JarvisMessage {
@@ -220,7 +220,7 @@ export function useJarvisConnection() {
 
     const voice = pickDarkMaleVoice(voices);
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(stripMarkdownForSpeech(text));
     utterance.lang = voice?.lang ?? "sv-SE";
     utterance.pitch = 0.5;
     utterance.rate = 0.9;

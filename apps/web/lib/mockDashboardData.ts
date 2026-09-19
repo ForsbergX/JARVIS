@@ -73,19 +73,6 @@ export const mockTraffic = {
   trend: [1900, 2100, 2400, 2600, 2500, 2841],
 };
 
-export const mockBookings = {
-  nextJob: { customer: "Familjen Åkesson", time: "Idag 14:00" },
-  today: [
-    { time: "10:00", customer: "Nilsson AB" },
-    { time: "14:00", customer: "Familjen Åkesson" },
-    { time: "16:30", customer: "Persson Fastigheter" },
-  ],
-  weekCount: 17,
-  estimatedValue: 84500,
-  currency: "kr",
-  statuses: [
-    { customer: "Nilsson AB", status: "Bekräftad" as const },
-    { customer: "Familjen Åkesson", status: "Bekräftad" as const },
-    { customer: "Persson Fastigheter", status: "Väntar" as const },
-  ],
-};
+// Booking/job data moved to mockBookingsData.ts — it needs real Date-based
+// past/upcoming logic (see getAllBookings/getPastBookings/getUpcomingBookings
+// there), which doesn't fit this file's plain-object-per-panel shape.

@@ -28,9 +28,12 @@ function CameraRig() {
   }, []);
 
   useFrame((state, delta) => {
-    const activePanel = useEiraStore.getState().activePanel;
+    // No panel-conditional offset: Eira/the orb stays the visual focal
+    // point (centered) whether or not a panel is open — the panel now
+    // positions itself around her instead (see HologramPanel/GoogleAdsPanel/
+    // FinancePanel's centered layout), rather than the camera panning away.
     const parallaxStrength = reducedMotion.current ? 0 : 0.35;
-    const targetX = mouse.current.x * parallaxStrength + (activePanel ? -0.6 : 0);
+    const targetX = mouse.current.x * parallaxStrength;
     const targetY = -mouse.current.y * parallaxStrength * 0.5 + 0.1;
 
     const lerp = 1 - Math.pow(0.0008, delta);

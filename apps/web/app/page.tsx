@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { loadVoices, pickDarkMaleVoice } from "@/lib/fallbackVoice";
+import { loadVoices, pickDarkMaleVoice, stripMarkdownForSpeech } from "@/lib/fallbackVoice";
 
 const AlienOrb = dynamic(
   () => import("@/components/orb/AlienOrb").then((m) => m.AlienOrb),
@@ -166,7 +166,7 @@ export default function ChatPage() {
     const voices = await loadVoices();
     const voice = pickDarkMaleVoice(voices);
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(stripMarkdownForSpeech(text));
     utterance.lang = voice?.lang ?? "sv-SE";
     utterance.pitch = 0.5;
     utterance.rate = 0.9;

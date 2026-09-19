@@ -2,7 +2,8 @@
 
 import { useEiraStore } from "@/store/useEiraStore";
 import { eiraTokens } from "@/lib/eiraTokens";
-import { mockFinance, mockGoogleAds, mockCustomers, mockTasks, mockBookings } from "@/lib/mockDashboardData";
+import { mockFinance, mockGoogleAds, mockCustomers, mockTasks } from "@/lib/mockDashboardData";
+import { getAllBookings } from "@/lib/mockBookingsData";
 
 function Indicator({ label, value }: { label: string; value: string }) {
   return (
@@ -28,7 +29,7 @@ export function SystemStatus() {
         color: eiraTokens.energyWhite,
       }}
     >
-      <Indicator label="Dagens jobb" value={String(mockBookings.today.length)} />
+      <Indicator label="Dagens jobb" value={String(getAllBookings().length)} />
       <Indicator
         label="Omsättning / mål"
         value={`${mockFinance.goalProgress}%`}

@@ -5,20 +5,30 @@
 // dashboard components themselves render from.
 import { useEiraStore } from "@/store/useEiraStore";
 import { getPanelLayout } from "@/components/eira/panelLayout";
-import { mockFinance, mockGoogleAds, mockCustomers, mockTasks, mockBookings, mockTraffic } from "./mockDashboardData";
+import { mockFinance, mockGoogleAds, mockCustomers, mockTasks, mockTraffic } from "./mockDashboardData";
 import { mockGoogleAdsData } from "./mockGoogleAdsData";
 import { mockFinanceData } from "./mockFinanceData";
+import { getAllBookings, getPastBookings, getUpcomingBookings, bookingWeekStats } from "./mockBookingsData";
 
 // One data source per panel id — mirrors exactly what PanelContent.tsx /
 // GoogleAdsPanel.tsx / FinancePanel.tsx render, so "visible" always means
 // "the same object the UI is currently showing," never a stale copy.
-const PANEL_DATA = {
-  tasks: mockTasks,
-  traffic: mockTraffic,
-  bookings: mockBookings,
-  ads: mockGoogleAdsData,
-  finance: mockFinanceData,
-} as const;
+// A plain function, not a module-level constant, because bookings' past/
+// upcoming split depends on the real clock at the moment of the request.
+function getPanelData() {
+  return {
+    tasks: mockTasks,
+    traffic: mockTraffic,
+    bookings: {
+      all: getAllBookings(),
+      past: getPastBookings(),
+      upcoming: getUpcomingBookings(),
+      weekStats: bookingWeekStats,
+    },
+    ads: mockGoogleAdsData,
+    finance: mockFinanceData,
+  } as const;
+}
 
 export interface JarvisUIContext {
   /** Which panel, if any, the user currently has open full-screen. */
@@ -54,12 +64,12 @@ export function getUIContext(): JarvisUIContext {
     assistantState: state,
     backendConnected: useEiraStore.getState().connected,
     systemStatus: {
-      dagensJobb: mockBookings.today.length,
+      dagensJobb: getAllBookings().length,
       omsattningMalProcent: mockFinance.goalProgress,
       aktivaAds: mockGoogleAds.campaignStatus,
       nyaKunder: mockCustomers.newThisMonth,
       viktigastIdag: mockTasks.today[0]?.label ?? "—",
     },
-    activePanelData: activePanel ? PANEL_DATA[activePanel] : null,
+    activePanelData: activePanel ? getPanelData()[activePanel] : null,
   };
 }

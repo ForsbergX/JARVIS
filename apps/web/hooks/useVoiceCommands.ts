@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useJarvisConnection } from "./useJarvisConnection";
 import { matchCommand, normalize } from "@/lib/commandRegistry";
 import { openPanel, closePanel } from "@/lib/jarvisActions";
+import { getBookingsBriefing } from "@/lib/mockBookingsData";
 import { useEiraStore } from "@/store/useEiraStore";
 
 // TEMP diagnostic logging for the speech pipeline — remove once voice
@@ -13,29 +14,55 @@ function voiceLog(...args: unknown[]) {
   if (DEBUG_VOICE) console.log("[voice]", ...args);
 }
 
+// Always-on trace of the entry-greeting / wake-word state machine — this is
+// the feature's own state log, not a temporary diagnostic, so it isn't
+// gated behind DEBUG_VOICE like voiceLog above.
+function eiraLog(tag: string) {
+  console.log(`[EIRA] ${tag}`);
+}
+
 const RESTART_DELAY_AFTER_SPEECH_MS = 600;
 const RESTART_DELAY_AFTER_INTERRUPT_MS = 300;
 const RETRY_BASE_DELAY_MS = 500;
 const RETRY_MAX_DELAY_MS = 5000;
+const WAKE_WORD = "eira";
+// Delay before restarting recognition right after a standby cycle (wake
+// word heard or missed) — same character as RESTART_DELAY_AFTER_INTERRUPT_MS,
+// named separately since it isn't actually an interrupt.
+const WAKE_CYCLE_DELAY_MS = 300;
+const ENTRY_GREETING = "Välkommen tillbaka, Tommy. Command Center är online. Jag är redo när du är redo.";
 // If the AI never replies (backend down, dropped WebSocket, network issue —
 // sendMessage() fails silently when the socket isn't open, so nothing ever
 // flips connection.speaking), Jarvis would otherwise be stuck in TÄNKER
 // forever with the mic off, since the only restart trigger is "speech just
 // finished". This is the safety net for that.
 const AI_RESPONSE_TIMEOUT_MS = 10000;
+// Same safety net, for the one-time entry greeting specifically: it's the
+// very first speech attempt on a cold page load, with no prior user
+// gesture — if the browser's speechSynthesis silently never starts (a real
+// Web Speech API flakiness point), connection.speaking never flips true,
+// the natural-end restart never fires, and listening would otherwise never
+// start at all.
+const GREETING_TIMEOUT_MS = 6000;
 
 /**
  * Half-duplex hands-free voice control for the Eira dashboard.
  *
- * State machine: IDLE -> LISTENING -> PROCESSING -> SPEAKING -> (~600ms) ->
- * LISTENING. The mic never runs while Jarvis talks, and Jarvis never starts
- * talking on his own. Every recognized alternative is checked against the
- * local dashboard commands first; only if none of them match does the
- * utterance go to the normal AI conversation. There is no manual mic
- * control: recognition starts itself on mount, and restarts itself after
- * every response. The only user-facing controls are the Escape key and
- * clicking the orb, both of which interrupt Jarvis mid-speech and start
- * listening again almost immediately.
+ * On mount, Eira speaks a one-time entry greeting, then drops into wake-word
+ * STANDBY: recognition keeps cycling in the background, but every result is
+ * checked only for the word "Eira" — anything else is silently discarded and
+ * standby restarts. Once the wake word is heard, one ACTIVE recognition
+ * cycle listens for the real command/question (checked against the local
+ * dashboard commands first, falling back to the normal AI conversation),
+ * speaks the reply, then automatically returns to standby.
+ *
+ * State machine: STANDBY -> (wake word) -> LISTENING -> THINKING -> SPEAKING
+ * -> (~600ms) -> STANDBY. The mic never runs while Jarvis talks, and Jarvis
+ * never starts talking on his own. There is no manual mic control:
+ * recognition starts itself on mount, and restarts itself after every
+ * response. The only user-facing controls are the Escape key and clicking
+ * the orb, both of which interrupt Jarvis mid-speech and return to standby
+ * listening almost immediately.
  */
 export function useVoiceCommands() {
   const connection = useJarvisConnection();
@@ -67,6 +94,16 @@ export function useVoiceCommands() {
   const wasSpeakingRef = useRef(false);
   const hasActivatedRef = useRef(false);
   const aiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const greetingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Gates what a recognized result means: in "standby", a result is only
+  // ever checked for the wake word; in "active", it's a real command/
+  // question and goes through the normal local-match/AI-fallback flow.
+  const voiceModeRef = useRef<"standby" | "active">("standby");
+  // Ensures the entry greeting speaks exactly once per mount, no matter how
+  // many times effects re-run (StrictMode, reconnects, etc.) — the mount
+  // effect below is already StrictMode-safe via its deferred start, but this
+  // is a second, explicit guard on the greeting specifically.
+  const hasGreetedRef = useRef(false);
 
   // Always-fresh handle on the connection object for callbacks that must
   // not close over a stale render (event listeners, timeouts).
@@ -108,14 +145,23 @@ export function useVoiceCommands() {
   useEffect(() => {
     const wasSpeaking = wasSpeakingRef.current;
     wasSpeakingRef.current = connection.speaking;
+    if (connection.speaking && !wasSpeaking) {
+      eiraLog("SPEAKING");
+    }
     if (connection.speaking && aiTimeoutRef.current) {
       // A real response started arriving — the AI didn't hang after all.
       clearTimeout(aiTimeoutRef.current);
       aiTimeoutRef.current = null;
     }
+    if (connection.speaking && greetingTimeoutRef.current) {
+      // The greeting actually started speaking — no need for the fallback.
+      clearTimeout(greetingTimeoutRef.current);
+      greetingTimeoutRef.current = null;
+    }
     if (wasSpeaking && !connection.speaking && expectingNaturalEndRef.current) {
       expectingNaturalEndRef.current = false;
       setState("idle");
+      returnToStandby();
       scheduleStart(RESTART_DELAY_AFTER_SPEECH_MS);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -141,6 +187,39 @@ export function useVoiceCommands() {
     connectionRef.current.speakText(text);
   }
 
+  /** Drops back into wake-word standby — called every time a listening/
+   * speaking cycle naturally ends, so "Eira" is always required again
+   * before the next command (interrupt, AI timeout, natural speech end, or
+   * an active-mode cycle that heard the wake word but no follow-up). */
+  function returnToStandby() {
+    voiceModeRef.current = "standby";
+    eiraLog("RETURN_TO_STANDBY");
+  }
+
+  /** One-time greeting on entry, then hands off to the normal listening
+   * cycle — reused by both the auto-start-on-mount path and the manual
+   * "AKTIVERA JARVIS" fallback, since a browser that blocks TTS until a
+   * real user gesture will only let the greeting play from the latter. */
+  function greetOnceThenListen() {
+    if (!hasGreetedRef.current) {
+      hasGreetedRef.current = true;
+      eiraLog("ENTRY_GREETING");
+      speak(ENTRY_GREETING);
+
+      if (greetingTimeoutRef.current) clearTimeout(greetingTimeoutRef.current);
+      greetingTimeoutRef.current = setTimeout(() => {
+        greetingTimeoutRef.current = null;
+        if (connectionRef.current.speaking) return; // it did start after all
+        voiceLog("Entry greeting never started speaking — listening anyway");
+        expectingNaturalEndRef.current = false;
+        returnToStandby();
+        startListening();
+      }, GREETING_TIMEOUT_MS);
+    } else {
+      startListening();
+    }
+  }
+
   /** AI fallback for speech that didn't match any local dashboard command.
    * Goes through the normal chat round-trip (packages/core Agent), whose
    * reply streams back and is spoken the same way a local confirmation is —
@@ -159,6 +238,7 @@ export function useVoiceCommands() {
       voiceLog("AI response timed out — resuming listening instead of hanging");
       expectingNaturalEndRef.current = false;
       setState("idle");
+      returnToStandby();
       startListening();
     }, AI_RESPONSE_TIMEOUT_MS);
   }
@@ -171,6 +251,7 @@ export function useVoiceCommands() {
     expectingNaturalEndRef.current = false;
     connectionRef.current.interruptSpeech();
     setState("idle");
+    returnToStandby();
     scheduleStart(RESTART_DELAY_AFTER_INTERRUPT_MS);
   }
 
@@ -186,10 +267,36 @@ export function useVoiceCommands() {
     retryTimeoutRef.current = setTimeout(() => startListening(), delay);
   }
 
+  /** Standby-mode result handler — checked only for the wake word. Anything
+   * else (ambient conversation, noise) is silently discarded; it never
+   * reaches handleUtterance/the AI, matching wake-word gating. */
+  function handleWakeWordUtterance(alternatives: string[]) {
+    const heard = alternatives.some((alt) => normalize(alt).includes(WAKE_WORD));
+    voiceLog(`wake-word check: heard=${heard}`, alternatives);
+    if (!heard) {
+      scheduleStart(WAKE_CYCLE_DELAY_MS);
+      return;
+    }
+    eiraLog("WAKE_DETECTED");
+    voiceModeRef.current = "active";
+
+    // "Eira, öppna bokningar" in one breath: matchCommand is substring-
+    // based, so the leading wake word doesn't stop it from matching
+    // whatever command follows — handle it immediately instead of
+    // discarding it and waiting for a second, separate utterance.
+    if (alternatives.some((alt) => matchCommand(alt).handled)) {
+      handleUtterance(alternatives);
+    } else {
+      // Just the wake word alone — listen again for the actual command.
+      scheduleStart(WAKE_CYCLE_DELAY_MS);
+    }
+  }
+
   function handleUtterance(alternatives: string[]) {
     const primary = alternatives[0]?.trim() ?? "";
     setTranscript(primary);
     setState("thinking");
+    eiraLog("THINKING");
 
     voiceLog("alternatives (raw):", alternatives);
 
@@ -211,7 +318,10 @@ export function useVoiceCommands() {
       voiceLog(`MATCHED command="${match.id}" panel=${match.panel ?? "-"} via alternative="${matchedAlt}"`);
       if (match.panel) openPanel(match.panel);
       else closePanel();
-      speak(match.confirmation);
+      // "öppna bokningar" gets a real briefing built from the same booking
+      // data the panel just rendered, instead of the fixed confirmation
+      // every other local command uses — everything else is unchanged.
+      speak(match.id === "open-bookings" ? getBookingsBriefing() : match.confirmation);
     } else {
       voiceLog("no local command matched — falling back to AI with:", primary);
       sendToAI(primary);
@@ -267,12 +377,16 @@ export function useVoiceCommands() {
 
     const mySessionId = ++sessionIdRef.current;
     resultHandledRef.current = false;
+    // Captured once per session so this session's callbacks always agree on
+    // what it was listening for, even if voiceModeRef changes later (e.g. a
+    // wake-word detection flips it while this closure is still alive).
+    const modeAtStart = voiceModeRef.current;
     const recognition = new SpeechRecognitionCtor();
     recognition.lang = "sv-SE";
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 5;
-    voiceLog(`starting recognition #${mySessionId} (lang=sv-SE)`);
+    voiceLog(`starting recognition #${mySessionId} (lang=sv-SE, mode=${modeAtStart})`);
 
     recognition.onstart = () => {
       voiceLog(`#${mySessionId} onstart`);
@@ -282,6 +396,7 @@ export function useVoiceCommands() {
       hasActivatedRef.current = true;
       setNeedsActivation(false);
       setListening(true);
+      eiraLog(modeAtStart === "active" ? "LISTENING" : "WAKE_STANDBY");
     };
     recognition.onaudiostart = () => voiceLog(`#${mySessionId} onaudiostart`);
     recognition.onspeechstart = () => voiceLog(`#${mySessionId} onspeechstart`);
@@ -301,7 +416,11 @@ export function useVoiceCommands() {
       }
       voiceLog(`#${mySessionId} onresult`, alternatives);
       setListening(false);
-      handleUtterance(alternatives);
+      if (modeAtStart === "standby") {
+        handleWakeWordUtterance(alternatives);
+      } else {
+        handleUtterance(alternatives);
+      }
     };
 
     recognition.onerror = (event: any) => {
@@ -320,6 +439,12 @@ export function useVoiceCommands() {
         // We did this ourselves (replacing the instance) — no retry needed.
         expectedEndRef.current = true;
         return;
+      }
+      if (modeAtStart === "active" && event?.error === "no-speech") {
+        // Wake word was heard but no command followed — don't keep the mic
+        // pinned in "active" mode waiting forever; back to standby so a
+        // later, unrelated sound isn't mistaken for a command.
+        returnToStandby();
       }
       // Transient error (no-speech, audio-capture, network, ...) — recover
       // on its own with limited backoff rather than erroring out.
@@ -377,7 +502,7 @@ export function useVoiceCommands() {
     let startTimeout: ReturnType<typeof setTimeout> | null = null;
     if (SpeechRecognitionCtor) {
       startTimeout = setTimeout(() => {
-        if (!cancelled) startListening();
+        if (!cancelled) greetOnceThenListen();
       }, 0);
     }
 
@@ -386,6 +511,7 @@ export function useVoiceCommands() {
       if (startTimeout) clearTimeout(startTimeout);
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       if (aiTimeoutRef.current) clearTimeout(aiTimeoutRef.current);
+      if (greetingTimeoutRef.current) clearTimeout(greetingTimeoutRef.current);
       abortCurrentRecognition();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -404,9 +530,11 @@ export function useVoiceCommands() {
   /** One-time recovery path for browsers that blocked the automatic start —
    * called from a real user gesture (the "AKTIVERA JARVIS" button), which
    * lets the permission prompt actually appear. Disappears for the rest of
-   * the session as soon as recognition starts successfully. */
+   * the session as soon as recognition starts successfully. Also the
+   * fallback if TTS itself needed a real gesture: if the greeting never
+   * got to play automatically, this click is what finally lets it. */
   function activateHandsFree() {
-    startListening();
+    greetOnceThenListen();
   }
 
   return {

@@ -65,3 +65,23 @@ export function pickDarkMaleVoice(voices: SpeechSynthesisVoice[]): SpeechSynthes
   if (british.length > 0) return british[0];
   return undefined;
 }
+
+// Claude's replies are plain text turned into speech, but the model still
+// reaches for markdown emphasis out of habit (e.g. "**Tommy Forsberg**") —
+// speechSynthesis has no idea what that means and reads the asterisks out
+// loud as literal words. Strips the common markdown constructs right before
+// an utterance is created, so voice output never says "asterisk".
+export function stripMarkdownForSpeech(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, " ") // fenced code blocks
+    .replace(/`([^`]+)`/g, "$1") // inline code
+    .replace(/^#{1,6}\s+/gm, "") // headers
+    .replace(/\*\*([^*]+)\*\*/g, "$1") // **bold**
+    .replace(/__([^_]+)__/g, "$1") // __bold__
+    .replace(/\*([^*]+)\*/g, "$1") // *italic*
+    .replace(/(?<![A-Za-z0-9])_([^_]+)_(?![A-Za-z0-9])/g, "$1") // _italic_
+    .replace(/^[-*+]\s+/gm, "") // bullet list markers
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // [text](url)
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
