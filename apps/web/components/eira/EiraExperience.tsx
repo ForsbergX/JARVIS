@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useVoiceCommands } from "@/hooks/useVoiceCommands";
+import { useEiraStore } from "@/store/useEiraStore";
 import { eiraTokens } from "@/lib/eiraTokens";
 import { PanelStage } from "./PanelStage";
 import { CommandInterface } from "./CommandInterface";
@@ -28,7 +29,8 @@ function hasWebGL(): boolean {
 
 export function EiraExperience() {
   const [webglAvailable, setWebglAvailable] = useState(true);
-  const { audioLevelRef, handleMicPress } = useVoiceCommands();
+  const { audioLevelRef, needsActivation, activateHandsFree, handleOrbInterrupt } = useVoiceCommands();
+  const eiraState = useEiraStore((s) => s.state);
 
   useEffect(() => {
     setWebglAvailable(hasWebGL());
@@ -50,6 +52,25 @@ export function EiraExperience() {
       ) : (
         <FallbackBrain />
       )}
+
+      {/* Click-the-orb interrupt: a plain DOM hit-zone over roughly where
+          the orb sits (no Three.js file touched). Only interactive while
+          Jarvis is talking, so it never blocks clicks on panels/cards. */}
+      <div
+        onClick={handleOrbInterrupt}
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: "38vmin",
+          height: "38vmin",
+          borderRadius: "50%",
+          pointerEvents: eiraState === "speaking" ? "auto" : "none",
+          cursor: eiraState === "speaking" ? "pointer" : "default",
+          zIndex: 10,
+        }}
+      />
 
       <div
         style={{
@@ -74,7 +95,7 @@ export function EiraExperience() {
 
       <PanelStage />
 
-      <CommandInterface onMicPress={handleMicPress} />
+      <CommandInterface needsActivation={needsActivation} onActivate={activateHandsFree} />
     </main>
   );
 }

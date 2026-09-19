@@ -45,6 +45,7 @@ const COMMANDS: CommandDefinition[] = [
       "annons",
       "google ads",
       "ads",
+      "kampanjen",
       "öppna google ads",
       "visa google ads",
       "visa annonser",
@@ -60,6 +61,9 @@ const COMMANDS: CommandDefinition[] = [
     phrases: [
       "ekonomi",
       "omsättning",
+      "resultat",
+      "fortnox",
+      "pengar",
       "öppna ekonomi",
       "visa ekonomin",
       "företagets ekonomi",
@@ -73,6 +77,7 @@ const COMMANDS: CommandDefinition[] = [
     id: "open-tasks",
     phrases: [
       "uppgift",
+      "dagens jobb",
       "öppna uppgifter",
       "visa uppgifter",
       "mina uppgifter",
@@ -89,6 +94,8 @@ const COMMANDS: CommandDefinition[] = [
       // "trafik" alone also matches "webbtrafik" and "hemsidetrafik" since
       // both contain it as a substring.
       "trafik",
+      "analytics",
+      "hemsidan",
       "öppna webbtrafik",
       "visa webbtrafik",
       "visa trafiken",
@@ -104,13 +111,12 @@ const COMMANDS: CommandDefinition[] = [
     phrases: [
       "bokning",
       "boka",
+      "kalender",
       "öppna bokningar",
       "visa bokningar",
       "visa mina bokningar",
       "dagens bokningar",
       "kommande bokningar",
-      "visa dagens jobb",
-      "öppna dagens jobb",
       "open bookings",
       "show bookings",
     ],

@@ -1,11 +1,15 @@
 "use client";
 
-import { AnimatePresence } from "motion/react";
 import { useEiraStore } from "@/store/useEiraStore";
 import { openPanel, closePanel } from "@/lib/jarvisActions";
 import { PANEL_LAYOUT } from "./panelLayout";
 import { HologramPanel } from "./HologramPanel";
 import { GoogleAdsPanel } from "./googleAds/GoogleAdsPanel";
+import { FinancePanel } from "./finance/FinancePanel";
+
+// Panels with their own dedicated, larger active-state component —
+// HologramPanel still renders their dormant tray thumbnail as before.
+const DEDICATED_PANEL_IDS = new Set(["ads", "finance"]);
 
 export function PanelStage() {
   const activePanel = useEiraStore((s) => s.activePanel);
@@ -19,15 +23,14 @@ export function PanelStage() {
         pointerEvents: "none",
       }}
     >
-      {PANEL_LAYOUT.map((panel) => {
-        // Google Ads gets its own dedicated, larger component once active;
-        // HologramPanel still renders its dormant tray thumbnail as before.
-        if (panel.id === "ads" && activePanel === "ads") return null;
+      {PANEL_LAYOUT.map((panel, index) => {
+        if (DEDICATED_PANEL_IDS.has(panel.id) && activePanel === panel.id) return null;
 
         return (
           <div key={panel.id} style={{ pointerEvents: "auto" }}>
             <HologramPanel
               panel={panel}
+              index={index}
               active={activePanel === panel.id}
               dimmed={activePanel !== null && activePanel !== panel.id}
               onSelect={() => (activePanel === panel.id ? closePanel() : openPanel(panel.id))}
@@ -36,9 +39,8 @@ export function PanelStage() {
         );
       })}
 
-      <AnimatePresence>
-        {activePanel === "ads" && <GoogleAdsPanel key="google-ads-panel" />}
-      </AnimatePresence>
+      <GoogleAdsPanel active={activePanel === "ads"} />
+      <FinancePanel active={activePanel === "finance"} />
     </div>
   );
 }

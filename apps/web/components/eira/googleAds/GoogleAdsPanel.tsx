@@ -217,22 +217,29 @@ const sectionTitleStyle: React.CSSProperties = {
   opacity: 0.9,
 };
 
-export function GoogleAdsPanel() {
+interface GoogleAdsPanelProps {
+  active: boolean;
+}
+
+export function GoogleAdsPanel({ active }: GoogleAdsPanelProps) {
   const reducedMotion = useReducedMotion();
   const isSmallScreen = useMediaQuery("(max-width: 768px)");
   const data = mockGoogleAdsData;
 
-  const enterOffsetX = reducedMotion ? 0 : 48;
-  const exitOffsetX = reducedMotion ? 0 : 24;
+  const restOffsetX = reducedMotion ? 0 : 24;
 
   return (
-    // Static positioning wrapper — plain CSS transform, never animated.
-    // Vertical (and, on small screens, horizontal) centering must NOT be a
-    // Framer motion value here: percentage transforms are relative to the
-    // element's OWN size, and animating them at the same time as `scale`
-    // makes the target move as the box resizes, so the spring never
-    // converges and AnimatePresence's exit never completes. All animation
-    // (opacity/scale/x in plain pixels) lives on the inner motion.div only.
+    // Always mounted — toggled purely via the `animate` prop (like
+    // HologramPanel), never via AnimatePresence/exit. Animation-completion
+    // callbacks (onAnimationComplete, AnimatePresence's onExitComplete)
+    // never fire in this project's Framer Motion setup — verified with a
+    // trivial, always-mounted motion.div completely unrelated to this panel
+    // — so anything waiting on an exit-completion signal hangs forever and
+    // the panel never actually closes. This was a real, pre-existing bug in
+    // the close button; fixed here with zero design/visual changes.
+    //
+    // Static positioning wrapper below — plain CSS transform, never
+    // animated, so percentage centering doesn't fight with animated `scale`.
     <div
       style={{
         position: "absolute",
@@ -247,15 +254,18 @@ export function GoogleAdsPanel() {
       }}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.94, x: enterOffsetX }}
-        animate={{ opacity: 1, scale: 1, x: 0 }}
-        exit={{ opacity: 0, scale: 0.95, x: exitOffsetX }}
+        initial={false}
+        animate={{
+          opacity: active ? 1 : 0,
+          scale: active ? 1 : 0.94,
+          x: active ? 0 : restOffsetX,
+        }}
         transition={{ type: "spring", stiffness: 120, damping: 18, mass: 0.9 }}
         style={{
           width: "100%",
           height: "100%",
           maxHeight: "75vh",
-          pointerEvents: "auto",
+          pointerEvents: active ? "auto" : "none",
           boxSizing: "border-box",
           display: "flex",
           flexDirection: "column",
@@ -272,7 +282,7 @@ export function GoogleAdsPanel() {
           backgroundSize: "28px 28px",
         }}
       >
-      {!reducedMotion && (
+      {active && !reducedMotion && (
         <motion.div
           animate={{ top: ["-10%", "100%"] }}
           transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
@@ -287,22 +297,26 @@ export function GoogleAdsPanel() {
           }}
         />
       )}
-      <CornerMarker
-        reducedMotion={reducedMotion}
-        style={{ top: 10, left: 10, borderTop: "2px solid", borderLeft: "2px solid" }}
-      />
-      <CornerMarker
-        reducedMotion={reducedMotion}
-        style={{ top: 10, right: 10, borderTop: "2px solid", borderRight: "2px solid" }}
-      />
-      <CornerMarker
-        reducedMotion={reducedMotion}
-        style={{ bottom: 10, left: 10, borderBottom: "2px solid", borderLeft: "2px solid" }}
-      />
-      <CornerMarker
-        reducedMotion={reducedMotion}
-        style={{ bottom: 10, right: 10, borderBottom: "2px solid", borderRight: "2px solid" }}
-      />
+      {active && (
+        <>
+          <CornerMarker
+            reducedMotion={reducedMotion}
+            style={{ top: 10, left: 10, borderTop: "2px solid", borderLeft: "2px solid" }}
+          />
+          <CornerMarker
+            reducedMotion={reducedMotion}
+            style={{ top: 10, right: 10, borderTop: "2px solid", borderRight: "2px solid" }}
+          />
+          <CornerMarker
+            reducedMotion={reducedMotion}
+            style={{ bottom: 10, left: 10, borderBottom: "2px solid", borderLeft: "2px solid" }}
+          />
+          <CornerMarker
+            reducedMotion={reducedMotion}
+            style={{ bottom: 10, right: 10, borderBottom: "2px solid", borderRight: "2px solid" }}
+          />
+        </>
+      )}
 
       <div
         style={{
@@ -383,6 +397,8 @@ export function GoogleAdsPanel() {
           gap: 26,
         }}
       >
+        {active && (
+        <>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16 }}>
           <KpiModule label="Klick" target={data.kpis.clicks} reducedMotion={reducedMotion} delay={0.05} />
           <KpiModule
@@ -473,6 +489,8 @@ export function GoogleAdsPanel() {
           <div style={sectionTitleStyle}>JARVIS PERFORMANCE REPORT</div>
           <p style={{ fontSize: 15, lineHeight: 1.6, opacity: 0.85, margin: 0 }}>{data.performanceReport}</p>
         </section>
+        </>
+        )}
       </div>
       </motion.div>
     </div>

@@ -1,6 +1,6 @@
 import type { PanelId } from "@/store/useEiraStore";
 import { eiraTokens } from "@/lib/eiraTokens";
-import { mockFinance, mockTasks, mockTraffic, mockBookings } from "@/lib/mockDashboardData";
+import { mockTasks, mockTraffic, mockBookings } from "@/lib/mockDashboardData";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -37,36 +37,8 @@ function MiniTrend({ points, color }: { points: number[]; color: string }) {
 
 export function PanelContent({ panel }: { panel: PanelId }) {
   switch (panel) {
-    // "ads" is rendered by the dedicated GoogleAdsPanel component instead
-    // (see PanelStage) — it never reaches this switch while active.
-    case "finance": {
-      const d = mockFinance;
-      return (
-        <>
-          <StatRow>
-            <Stat label="Omsättning" value={`${d.revenue.toLocaleString("sv-SE")} ${d.currency}`} />
-            <Stat label="Företagskonto" value={`${d.companyAccount.toLocaleString("sv-SE")} ${d.currency}`} />
-            <Stat label="Mål" value={`${d.goal.toLocaleString("sv-SE")} ${d.currency}`} />
-          </StatRow>
-          <div>
-            <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 4 }}>
-              MÅLUPPFYLLELSE {d.goalProgress}%
-            </div>
-            <div style={{ width: 220, height: 6, background: "rgba(255,255,255,0.1)", borderRadius: 3 }}>
-              <div
-                style={{
-                  width: `${d.goalProgress}%`,
-                  height: "100%",
-                  background: eiraTokens.violetBright,
-                  borderRadius: 3,
-                }}
-              />
-            </div>
-          </div>
-          <MiniTrend points={d.trend} color={eiraTokens.violetBright} />
-        </>
-      );
-    }
+    // "ads" and "finance" are rendered by their own dedicated components
+    // instead (see PanelStage) — they never reach this switch while active.
     case "tasks": {
       const d = mockTasks;
       return (
