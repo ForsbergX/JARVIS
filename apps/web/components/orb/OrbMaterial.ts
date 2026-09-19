@@ -13,8 +13,8 @@ import {
 export const OrbMaterial = shaderMaterial(
   {
     uTime: 0,
-    uColor: new THREE.Color("#5b21b6"),
-    uGlowColor: new THREE.Color("#c4b5fd"),
+    uColor: new THREE.Color("#7a0018"),
+    uGlowColor: new THREE.Color("#ff163d"),
     uDisplacement: 0.18,
     uSpeed: 0.25,
     uOpacity: 0.92,
@@ -32,7 +32,7 @@ export const OrbMaterial = shaderMaterial(
 export const OrbCoreGlowMaterial = shaderMaterial(
   {
     uTime: 0,
-    uColor: new THREE.Color("#e9d5ff"),
+    uColor: new THREE.Color("#ff536e"),
     uPulse: 0,
     uDistortion: 0,
     uEnergyIntensity: 0,
@@ -43,7 +43,7 @@ export const OrbCoreGlowMaterial = shaderMaterial(
 
 export const OrbHaloMaterial = shaderMaterial(
   {
-    uColor: new THREE.Color("#a78bfa"),
+    uColor: new THREE.Color("#ff163d"),
     uEnergyIntensity: 0,
   },
   orbHaloVertexShader,

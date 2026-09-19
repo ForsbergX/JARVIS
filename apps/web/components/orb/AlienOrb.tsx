@@ -1,10 +1,10 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { EffectComposer, Bloom, ChromaticAberration } from "@react-three/postprocessing";
-import { Vector2 } from "three";
+import { EffectComposer, Bloom } from "@react-three/postprocessing";
+
 import { OrbCore } from "./OrbCore";
 import { OrbRings } from "./OrbRings";
 import { OrbParticles } from "./OrbParticles";
@@ -20,14 +20,14 @@ export interface AlienOrbProps {
 }
 
 export function AlienOrb({
-  color = "#5b21b6",
-  glowColor = "#a78bfa",
+  color = "#7a0018",
+  glowColor = "#ff163d",
   size = 1.4,
   interactive = true,
   className,
   audioLevelRef,
 }: AlienOrbProps) {
-  const chromaticOffset = useMemo(() => new Vector2(0.0006, 0.0012), []);
+
 
   return (
     <div className={className} style={{ width: "100%", height: "100%" }}>
@@ -43,14 +43,9 @@ export function AlienOrb({
           <OrbParticles size={size} color={glowColor} />
           <EffectComposer multisampling={0}>
             <Bloom
-              intensity={0.55}
+              intensity={0.28}
               luminanceThreshold={0.35}
               luminanceSmoothing={0.25}
-            />
-            <ChromaticAberration
-              offset={chromaticOffset}
-              radialModulation={false}
-              modulationOffset={0}
             />
           </EffectComposer>
           <OrbitControls
@@ -58,7 +53,7 @@ export function AlienOrb({
             enableZoom={false}
             enablePan={false}
             autoRotate
-            autoRotateSpeed={0.6}
+            autoRotateSpeed={0.18}
           />
         </Suspense>
       </Canvas>

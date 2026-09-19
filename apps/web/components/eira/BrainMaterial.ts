@@ -9,8 +9,8 @@ import { energyLineFragmentShader } from "./shaders/energyLineFragment";
 export const BrainMaterial = shaderMaterial(
   {
     uTime: 0,
-    uPrimaryColor: new THREE.Color("#8b5cf6"),
-    uSecondaryColor: new THREE.Color("#f5f3ff"),
+    uPrimaryColor: new THREE.Color("#ff163d"),
+    uSecondaryColor: new THREE.Color("#f4f4f6"),
     uDisplacement: 0.16,
     uSpeed: 0.22,
     uOpacity: 0.94,
@@ -29,7 +29,7 @@ export const BrainMaterial = shaderMaterial(
 
 export const EnergyLineMaterial = shaderMaterial(
   {
-    uColor: new THREE.Color("#c084fc"),
+    uColor: new THREE.Color("#ff536e"),
     uTime: 0,
     uSpeed: 0.6,
     uIntensity: 1,

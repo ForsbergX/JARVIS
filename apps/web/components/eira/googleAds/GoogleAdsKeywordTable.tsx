@@ -12,8 +12,8 @@ interface GoogleAdsKeywordTableProps {
 }
 
 const badgeColor: Record<NonNullable<GoogleAdsKeyword["badge"]>, string> = {
-  "BÄSTA CTR": eiraTokens.cyanAccent,
-  "STÖRSTA TRAFIKKÄLLA": eiraTokens.violetBright,
+  "BÄSTA CTR": eiraTokens.contrastAccent,
+  "STÖRSTA TRAFIKKÄLLA": eiraTokens.accentBright,
 };
 
 const gridColumns = "1fr 190px 60px 70px";
@@ -60,7 +60,7 @@ export function GoogleAdsKeywordTable({ keywords, reducedMotion, stacked }: Goog
             padding: 10,
             borderRadius: 8,
             border: `1px solid ${hovered === i ? eiraTokens.panelBorder : "transparent"}`,
-            background: hovered === i ? "rgba(192, 132, 252, 0.08)" : "transparent",
+            background: hovered === i ? "rgba(255, 22, 61, 0.08)" : "transparent",
             transition: "background 0.2s ease, border-color 0.2s ease",
             fontVariantNumeric: "tabular-nums",
           }}
@@ -108,8 +108,8 @@ export function GoogleAdsKeywordTable({ keywords, reducedMotion, stacked }: Goog
                     height: "100%",
                     width: `${Math.max(6, (k.cost / maxCost) * 100)}%`,
                     borderRadius: 3,
-                    background: `linear-gradient(90deg, ${eiraTokens.violetPrimary}, ${eiraTokens.cyanAccent})`,
-                    boxShadow: `0 0 6px ${eiraTokens.violetBright}88`,
+                    background: `linear-gradient(90deg, ${eiraTokens.accentPrimary}, ${eiraTokens.contrastAccent})`,
+                    boxShadow: `0 0 6px ${eiraTokens.accentBright}88`,
                   }}
                 />
               </div>

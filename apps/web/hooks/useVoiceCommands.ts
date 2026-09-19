@@ -17,6 +17,12 @@ const RESTART_DELAY_AFTER_SPEECH_MS = 600;
 const RESTART_DELAY_AFTER_INTERRUPT_MS = 300;
 const RETRY_BASE_DELAY_MS = 500;
 const RETRY_MAX_DELAY_MS = 5000;
+// If the AI never replies (backend down, dropped WebSocket, network issue —
+// sendMessage() fails silently when the socket isn't open, so nothing ever
+// flips connection.speaking), Jarvis would otherwise be stuck in TÄNKER
+// forever with the mic off, since the only restart trigger is "speech just
+// finished". This is the safety net for that.
+const AI_RESPONSE_TIMEOUT_MS = 10000;
 
 /**
  * Half-duplex hands-free voice control for the Eira dashboard.
@@ -60,6 +66,7 @@ export function useVoiceCommands() {
   const expectingNaturalEndRef = useRef(false);
   const wasSpeakingRef = useRef(false);
   const hasActivatedRef = useRef(false);
+  const aiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Always-fresh handle on the connection object for callbacks that must
   // not close over a stale render (event listeners, timeouts).
@@ -101,6 +108,11 @@ export function useVoiceCommands() {
   useEffect(() => {
     const wasSpeaking = wasSpeakingRef.current;
     wasSpeakingRef.current = connection.speaking;
+    if (connection.speaking && aiTimeoutRef.current) {
+      // A real response started arriving — the AI didn't hang after all.
+      clearTimeout(aiTimeoutRef.current);
+      aiTimeoutRef.current = null;
+    }
     if (wasSpeaking && !connection.speaking && expectingNaturalEndRef.current) {
       expectingNaturalEndRef.current = false;
       setState("idle");
@@ -132,10 +144,23 @@ export function useVoiceCommands() {
   /** AI fallback for speech that didn't match any local dashboard command.
    * Goes through the normal chat round-trip (packages/core Agent), whose
    * reply streams back and is spoken the same way a local confirmation is —
-   * so the natural-end restart below applies here too. */
+   * so the natural-end restart below applies here too. Armed with a timeout:
+   * if the backend is unreachable (down, dropped socket, network issue),
+   * sendMessage() fails silently and connection.speaking would simply never
+   * become true, leaving Jarvis stuck in TÄNKER with the mic off forever. */
   function sendToAI(text: string) {
     expectingNaturalEndRef.current = true;
     connectionRef.current.sendMessage(text);
+
+    if (aiTimeoutRef.current) clearTimeout(aiTimeoutRef.current);
+    aiTimeoutRef.current = setTimeout(() => {
+      aiTimeoutRef.current = null;
+      if (connectionRef.current.speaking) return; // a reply did arrive after all
+      voiceLog("AI response timed out — resuming listening instead of hanging");
+      expectingNaturalEndRef.current = false;
+      setState("idle");
+      startListening();
+    }, AI_RESPONSE_TIMEOUT_MS);
   }
 
   /** Cancels whatever Jarvis is saying and starts listening again shortly
@@ -360,6 +385,7 @@ export function useVoiceCommands() {
       cancelled = true;
       if (startTimeout) clearTimeout(startTimeout);
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+      if (aiTimeoutRef.current) clearTimeout(aiTimeoutRef.current);
       abortCurrentRecognition();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

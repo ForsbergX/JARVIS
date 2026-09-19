@@ -22,10 +22,10 @@ const STATE_LABEL: Record<DisplayState, string> = {
 };
 
 const STATE_COLOR: Record<DisplayState, string> = {
-  idle: eiraTokens.violetPrimary,
-  listening: eiraTokens.cyanAccent,
-  thinking: eiraTokens.violetBright,
-  speaking: eiraTokens.energyWhite,
+  idle: "#9999a3",
+  listening: eiraTokens.accentPrimary,
+  thinking: eiraTokens.accentBright,
+  speaking: eiraTokens.accentPrimary,
 };
 
 export function VoiceStatus() {
@@ -34,7 +34,7 @@ export function VoiceStatus() {
   const color = STATE_COLOR[display];
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--font-command)" }}>
       <span
         style={{
           width: 8,

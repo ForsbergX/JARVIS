@@ -12,7 +12,7 @@ import { GoogleAdsKeywordTable } from "./GoogleAdsKeywordTable";
 // panel is large enough to sit directly over the bright orb core, and its
 // text needs guaranteed contrast regardless of what's glowing behind it.
 // Other panels (which use eiraTokens.panelBackground) are untouched.
-const ADS_PANEL_BACKGROUND = "rgba(6, 2, 14, 0.88)";
+const ADS_PANEL_BACKGROUND = "rgba(7, 7, 9, 0.88)";
 
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
@@ -73,7 +73,7 @@ function KpiModule({ label, target, decimals = 0, suffix = "", reducedMotion, de
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: reducedMotion ? 0 : 0.4, delay: reducedMotion ? 0 : delay }}
       style={{
-        background: "rgba(139, 92, 246, 0.07)",
+        background: "rgba(255, 22, 61, 0.07)",
         border: `1px solid ${eiraTokens.panelBorder}`,
         borderRadius: 12,
         padding: "14px 16px",
@@ -96,7 +96,7 @@ function KpiModule({ label, target, decimals = 0, suffix = "", reducedMotion, de
           fontWeight: 600,
           fontVariantNumeric: "tabular-nums",
           color: eiraTokens.energyWhite,
-          textShadow: `0 0 16px ${eiraTokens.violetPrimary}66`,
+          textShadow: "none",
         }}
       >
         {sv(value, decimals)}
@@ -195,7 +195,7 @@ function CornerMarker({ style, reducedMotion }: { style: React.CSSProperties; re
         position: "absolute",
         width: 18,
         height: 18,
-        borderColor: eiraTokens.cyanAccent,
+        borderColor: eiraTokens.contrastAccent,
         zIndex: 2,
         pointerEvents: "none",
         ...style,
@@ -212,7 +212,7 @@ const sectionStyle: React.CSSProperties = {
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 13,
   letterSpacing: 1,
-  color: eiraTokens.cyanAccent,
+  color: eiraTokens.contrastAccent,
   marginBottom: 14,
   opacity: 0.9,
 };
@@ -271,32 +271,18 @@ export function GoogleAdsPanel({ active }: GoogleAdsPanelProps) {
           flexDirection: "column",
           background: ADS_PANEL_BACKGROUND,
           border: `1px solid ${eiraTokens.panelBorder}`,
-          borderRadius: 16,
+          borderRadius: 6,
           backdropFilter: "blur(14px)",
-          boxShadow: `0 0 50px ${eiraTokens.violetPrimary}44, inset 0 0 1px ${eiraTokens.violetBright}, inset 0 0 60px rgba(103, 232, 249, 0.04)`,
+          boxShadow: `0 0 20px ${eiraTokens.accentPrimary}22, inset 0 0 1px ${eiraTokens.accentBright}, inset 0 0 60px rgba(255, 22, 61, 0.04)`,
           color: eiraTokens.energyWhite,
-          fontFamily: "system-ui, sans-serif",
+          fontFamily: "var(--font-command)",
           overflow: "hidden",
           backgroundImage:
-            "linear-gradient(rgba(192, 132, 252, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(192, 132, 252, 0.05) 1px, transparent 1px)",
+            "linear-gradient(rgba(255, 22, 61, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 22, 61, 0.05) 1px, transparent 1px)",
           backgroundSize: "28px 28px",
         }}
       >
-      {active && !reducedMotion && (
-        <motion.div
-          animate={{ top: ["-10%", "100%"] }}
-          transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            height: 60,
-            background: "linear-gradient(to bottom, transparent, rgba(103, 232, 249, 0.08), transparent)",
-            pointerEvents: "none",
-            zIndex: 1,
-          }}
-        />
-      )}
+
       {active && (
         <>
           <CornerMarker
@@ -330,7 +316,7 @@ export function GoogleAdsPanel({ active }: GoogleAdsPanelProps) {
         }}
       >
         <div>
-          <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: 1, color: eiraTokens.violetBright }}>
+          <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: 1, color: eiraTokens.accentBright }}>
             GOOGLE ADS // COMMAND ANALYTICS
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 13, opacity: 0.85 }}>
@@ -442,19 +428,19 @@ export function GoogleAdsPanel({ active }: GoogleAdsPanelProps) {
             <GaugeModule
               label="Sökvolym Sverige"
               valuePct={data.marketSignal.searchVolumeChangePct}
-              color={eiraTokens.cyanAccent}
+              color={eiraTokens.contrastAccent}
               reducedMotion={reducedMotion}
               delay={0.1}
             />
             <GaugeModule
               label="Mina klick"
               valuePct={data.marketSignal.myClicksChangePct}
-              color={eiraTokens.violetBright}
+              color={eiraTokens.accentBright}
               reducedMotion={reducedMotion}
               delay={0.2}
             />
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <MiniSparkline points={data.marketSignal.trend} color={eiraTokens.cyanAccent} />
+              <MiniSparkline points={data.marketSignal.trend} color={eiraTokens.contrastAccent} />
               <div style={{ fontSize: 11, letterSpacing: 0.5, color: eiraTokens.success, opacity: 0.85 }}>
                 ▲ UPPÅTGÅENDE TREND
               </div>
@@ -465,13 +451,13 @@ export function GoogleAdsPanel({ active }: GoogleAdsPanelProps) {
           </p>
           <div
             style={{
-              background: "rgba(103, 232, 249, 0.06)",
-              border: "1px solid rgba(103, 232, 249, 0.3)",
+              background: "rgba(255, 22, 61, 0.06)",
+              border: "1px solid rgba(255, 22, 61, 0.3)",
               borderRadius: 10,
               padding: "14px 16px",
             }}
           >
-            <div style={{ fontSize: 11.5, letterSpacing: 1, color: eiraTokens.cyanAccent, marginBottom: 6 }}>
+            <div style={{ fontSize: 11.5, letterSpacing: 1, color: eiraTokens.contrastAccent, marginBottom: 6 }}>
               JARVIS INSIGHT
             </div>
             <div style={{ fontSize: 15, fontStyle: "italic", opacity: 0.9 }}>

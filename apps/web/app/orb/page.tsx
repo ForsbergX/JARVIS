@@ -13,14 +13,14 @@ export default function OrbPage() {
       style={{
         width: "100vw",
         height: "100vh",
-        background: "radial-gradient(circle at center, #0a0612 0%, #000000 100%)",
+        background: "radial-gradient(circle at center, #070709 0%, #000000 100%)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
       }}
     >
       <div style={{ width: "min(80vw, 720px)", height: "min(80vw, 720px)" }}>
-        <AlienOrb color="#5b21b6" glowColor="#a78bfa" size={1.4} />
+        <AlienOrb color="#7a0018" glowColor="#ff163d" size={1.4} />
       </div>
     </main>
   );

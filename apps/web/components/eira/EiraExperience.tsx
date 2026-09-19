@@ -37,11 +37,11 @@ export function EiraExperience() {
   }, []);
 
   return (
-    <main
+    <main className="command-experience"
       style={{
         position: "fixed",
         inset: 0,
-        background: `radial-gradient(circle at 50% 40%, ${eiraTokens.backgroundSecondary} 0%, ${eiraTokens.background} 70%)`,
+        backgroundColor: eiraTokens.background,
         overflow: "hidden",
       }}
     >
@@ -78,10 +78,10 @@ export function EiraExperience() {
           top: "5%",
           left: "50%",
           transform: "translateX(-50%)",
-          fontFamily: "system-ui, sans-serif",
+          fontFamily: "var(--font-command)",
           fontSize: 13,
           letterSpacing: 4,
-          color: eiraTokens.violetBright,
+          color: eiraTokens.accentBright,
           opacity: 0.85,
           pointerEvents: "none",
         }}

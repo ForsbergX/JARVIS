@@ -24,7 +24,7 @@ export function SystemStatus() {
         display: "flex",
         gap: 28,
         flexWrap: "wrap",
-        fontFamily: "system-ui, sans-serif",
+        fontFamily: "var(--font-command)",
         color: eiraTokens.energyWhite,
       }}
     >

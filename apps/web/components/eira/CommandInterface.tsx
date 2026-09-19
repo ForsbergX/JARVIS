@@ -28,16 +28,16 @@ export function CommandInterface({ needsActivation, onActivate }: CommandInterfa
           type="button"
           onClick={onActivate}
           style={{
-            background: "rgba(8, 3, 18, 0.7)",
-            border: `1px solid ${eiraTokens.violetBright}`,
-            color: eiraTokens.violetBright,
+            background: "rgba(7, 7, 9, 0.7)",
+            border: `1px solid ${eiraTokens.accentBright}`,
+            color: eiraTokens.accentBright,
             borderRadius: 999,
             padding: "10px 22px",
             fontSize: 12,
             letterSpacing: 2,
-            fontFamily: "system-ui, sans-serif",
+            fontFamily: "var(--font-command)",
             cursor: "pointer",
-            boxShadow: `0 0 16px ${eiraTokens.violetPrimary}55`,
+            boxShadow: `0 0 16px ${eiraTokens.accentPrimary}55`,
           }}
         >
           AKTIVERA JARVIS

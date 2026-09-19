@@ -88,7 +88,7 @@ export function PanelContent({ panel }: { panel: PanelId }) {
               </div>
             ))}
           </div>
-          <MiniTrend points={d.trend} color={eiraTokens.cyanAccent} />
+          <MiniTrend points={d.trend} color={eiraTokens.contrastAccent} />
         </>
       );
     }

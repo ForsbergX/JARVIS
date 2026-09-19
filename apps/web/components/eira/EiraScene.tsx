@@ -60,7 +60,7 @@ export function EiraScene({ audioLevelRef }: EiraSceneProps) {
         <CameraRig />
 
         <EffectComposer multisampling={0}>
-          <Bloom intensity={0.6} luminanceThreshold={0.32} luminanceSmoothing={0.25} />
+          <Bloom intensity={0.3} luminanceThreshold={0.32} luminanceSmoothing={0.25} />
           {quality === "high" ? (
             <DepthOfField focusDistance={0.02} focalLength={0.05} bokehScale={2.2} />
           ) : (

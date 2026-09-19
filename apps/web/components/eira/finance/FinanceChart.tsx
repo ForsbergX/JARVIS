@@ -14,7 +14,7 @@ const HEIGHT = 220;
 const PAD_X = 16;
 const PAD_TOP = 14;
 const PAD_BOTTOM = 30;
-const COST_COLOR = "#f472b6";
+const COST_COLOR = "#9b9ba5";
 
 export function FinanceChart({ points, reducedMotion }: FinanceChartProps) {
   const chartHeight = HEIGHT - PAD_TOP - PAD_BOTTOM;
@@ -40,7 +40,7 @@ export function FinanceChart({ points, reducedMotion }: FinanceChartProps) {
   return (
     <div style={{ width: "100%" }}>
       <div style={{ display: "flex", gap: 20, marginBottom: 8, flexWrap: "wrap" }}>
-        <LegendSwatch color={eiraTokens.cyanAccent} label="Intäkter" shape="square" />
+        <LegendSwatch color={eiraTokens.contrastAccent} label="Intäkter" shape="square" />
         <LegendSwatch color={COST_COLOR} label="Kostnader" shape="square" />
         <LegendSwatch color={eiraTokens.success} label="Resultat" shape="line" />
       </div>
@@ -54,8 +54,8 @@ export function FinanceChart({ points, reducedMotion }: FinanceChartProps) {
             </feMerge>
           </filter>
           <linearGradient id="finance-revenue-bar" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={eiraTokens.cyanAccent} stopOpacity={0.9} />
-            <stop offset="100%" stopColor={eiraTokens.cyanAccent} stopOpacity={0.35} />
+            <stop offset="0%" stopColor={eiraTokens.contrastAccent} stopOpacity={0.9} />
+            <stop offset="100%" stopColor={eiraTokens.contrastAccent} stopOpacity={0.35} />
           </linearGradient>
           <linearGradient id="finance-cost-bar" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={COST_COLOR} stopOpacity={0.9} />

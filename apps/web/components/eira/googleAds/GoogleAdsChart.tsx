@@ -60,8 +60,8 @@ export function GoogleAdsChart({ points, reducedMotion }: GoogleAdsChartProps) {
   return (
     <div style={{ width: "100%" }}>
       <div style={{ display: "flex", gap: 20, marginBottom: 8 }}>
-        <LegendDot color={eiraTokens.cyanAccent} label="Klick" />
-        <LegendDot color={eiraTokens.violetBright} label="Exponeringar" />
+        <LegendDot color={eiraTokens.contrastAccent} label="Klick" />
+        <LegendDot color={eiraTokens.accentBright} label="Exponeringar" />
       </div>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} width="100%" style={{ overflow: "visible", display: "block" }}>
         <defs>
@@ -73,12 +73,12 @@ export function GoogleAdsChart({ points, reducedMotion }: GoogleAdsChartProps) {
             </feMerge>
           </filter>
           <linearGradient id="ads-clicks-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={eiraTokens.cyanAccent} stopOpacity={0.28} />
-            <stop offset="100%" stopColor={eiraTokens.cyanAccent} stopOpacity={0} />
+            <stop offset="0%" stopColor={eiraTokens.contrastAccent} stopOpacity={0.28} />
+            <stop offset="100%" stopColor={eiraTokens.contrastAccent} stopOpacity={0} />
           </linearGradient>
           <linearGradient id="ads-impressions-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={eiraTokens.violetBright} stopOpacity={0.22} />
-            <stop offset="100%" stopColor={eiraTokens.violetBright} stopOpacity={0} />
+            <stop offset="0%" stopColor={eiraTokens.accentBright} stopOpacity={0.22} />
+            <stop offset="100%" stopColor={eiraTokens.accentBright} stopOpacity={0} />
           </linearGradient>
         </defs>
 
@@ -114,7 +114,7 @@ export function GoogleAdsChart({ points, reducedMotion }: GoogleAdsChartProps) {
         <motion.path
           d={impressionsLine}
           fill="none"
-          stroke={eiraTokens.violetBright}
+          stroke={eiraTokens.accentBright}
           strokeWidth={2}
           strokeLinecap="round"
           filter="url(#ads-line-glow)"
@@ -125,7 +125,7 @@ export function GoogleAdsChart({ points, reducedMotion }: GoogleAdsChartProps) {
         <motion.path
           d={clicksLine}
           fill="none"
-          stroke={eiraTokens.cyanAccent}
+          stroke={eiraTokens.contrastAccent}
           strokeWidth={2.2}
           strokeLinecap="round"
           filter="url(#ads-line-glow)"

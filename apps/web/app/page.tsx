@@ -238,18 +238,18 @@ export default function ChatPage() {
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
-      <h1>JARVIS</h1>
+    <main className="chat-command" style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
+      <h1>JARVIS <span>COMMAND INTERFACE</span></h1>
       <div style={{ width: 220, height: 220, margin: "0 auto" }}>
         <AlienOrb
-          color="#5b21b6"
-          glowColor="#a78bfa"
+          color="#7a0018"
+          glowColor="#ff163d"
           size={1.4}
           audioLevelRef={audioLevelRef}
         />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <p style={{ color: connected ? "green" : "crimson" }}>
+        <p className={connected ? "connection-status online" : "connection-status"} style={{ color: connected ? "#f4f4f6" : "#ff536e" }}>
           {connected ? "connected" : "disconnected"}
         </p>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
@@ -263,7 +263,7 @@ export default function ChatPage() {
       </div>
       <div
         style={{
-          border: "1px solid #ccc",
+          border: "1px solid rgba(255,22,61,0.28)", background: "rgba(7,7,9,0.82)", backdropFilter: "blur(10px)",
           borderRadius: 8,
           padding: 16,
           minHeight: 320,
@@ -285,19 +285,20 @@ export default function ChatPage() {
             )}
           </div>
         ))}
-        {pending && <div style={{ color: "#888" }}>JARVIS is thinking…</div>}
+        {pending && <div style={{ color: "#b8b8c2" }}>JARVIS is thinking…</div>}
       </div>
       {!micSupported && (
-        <p style={{ color: "#b45309", fontSize: 13, marginTop: 8 }}>
+        <p style={{ color: "#ff879a", fontSize: 13, marginTop: 8 }}>
           Röstinmatning stöds inte i den här webbläsaren — använd Chrome eller Edge.
         </p>
       )}
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         <button
+          aria-pressed={listening}
           onClick={toggleListening}
           disabled={!connected || !micSupported}
           style={{
-            background: listening ? "#dc2626" : undefined,
+            background: listening ? "#7a0018" : undefined,
             color: listening ? "white" : undefined,
           }}
           title={listening ? "Sluta lyssna" : "Prata med JARVIS"}

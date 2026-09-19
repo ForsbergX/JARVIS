@@ -34,7 +34,7 @@ export function DataChamber() {
   return (
     <group>
       <lineSegments ref={gridRef} geometry={gridGeometry} position={[0, -4.5, 0]}>
-        <lineBasicMaterial color="#3b0764" transparent opacity={0.25} />
+        <lineBasicMaterial color="#7a0018" transparent opacity={0.25} />
       </lineSegments>
 
       <points ref={dustRef}>
@@ -42,7 +42,7 @@ export function DataChamber() {
           <bufferAttribute attach="attributes-position" args={[dust, 3]} />
         </bufferGeometry>
         <pointsMaterial
-          color="#c084fc"
+          color="#ff536e"
           size={0.02}
           transparent
           opacity={0.35}
@@ -52,7 +52,7 @@ export function DataChamber() {
         />
       </points>
 
-      <fog attach="fog" args={["#030107", 8, 26]} />
+      <fog attach="fog" args={["#020203", 8, 26]} />
     </group>
   );
 }

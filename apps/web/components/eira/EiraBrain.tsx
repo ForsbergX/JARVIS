@@ -17,9 +17,9 @@ interface EiraBrainProps {
   audioLevelRef?: React.RefObject<number>;
 }
 
-const PRIMARY_COLOR = "#8b5cf6";
-const SECONDARY_COLOR = "#f5f3ff";
-const ERROR_COLOR = "#fb7185";
+const PRIMARY_COLOR = "#ff163d";
+const SECONDARY_COLOR = "#f4f4f6";
+const ERROR_COLOR = "#ff163d";
 
 interface StateTarget {
   pulse: number;
@@ -114,8 +114,8 @@ export function EiraBrain({ size = 1.6, audioLevelRef }: EiraBrainProps) {
       </mesh>
 
       <NeuralFilaments size={size} color={SECONDARY_COLOR} audioLevelRef={audioLevelRef} />
-      <NeuralParticles size={size} color="#c084fc" audioLevelRef={audioLevelRef} />
-      <EnergyConnections size={size} color="#67e8f9" />
+      <NeuralParticles size={size} color="#ff536e" audioLevelRef={audioLevelRef} />
+      <EnergyConnections size={size} color="#d6d6dc" />
 
       <pointLight color={PRIMARY_COLOR} intensity={2.2} distance={size * 7} decay={2} />
     </group>

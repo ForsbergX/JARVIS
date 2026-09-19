@@ -21,15 +21,15 @@ export function FallbackBrain() {
           width: 260,
           height: 260,
           borderRadius: "50%",
-          background: `radial-gradient(circle at 40% 35%, ${eiraTokens.energyWhite}, ${eiraTokens.violetBright} 35%, ${eiraTokens.violetPrimary} 60%, transparent 75%)`,
-          boxShadow: `0 0 90px ${eiraTokens.violetPrimary}88`,
+          background: `radial-gradient(circle at 40% 35%, ${eiraTokens.energyWhite}, ${eiraTokens.accentBright} 35%, ${eiraTokens.accentPrimary} 60%, transparent 75%)`,
+          boxShadow: `0 0 30px ${eiraTokens.accentPrimary}33`,
           animation: "eira-fallback-pulse 3.4s ease-in-out infinite",
         }}
       />
       <style>{`
         @keyframes eira-fallback-pulse {
           0%, 100% { transform: scale(1); opacity: 0.85; }
-          50% { transform: scale(1.06); opacity: 1; }
+          50% { transform: scale(1.02); opacity: 1; }
         }
       `}</style>
     </div>

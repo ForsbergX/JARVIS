@@ -40,11 +40,17 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
 
   // Dormant cards sit at a fixed grid position on small screens (mustn't
   // overlap each other or crowd the orb/status), instead of the percentage
-  // fan-out used on desktop.
+  // fan-out used on desktop. 11% row spacing was sized for the OLD, smaller
+  // cards — at the current min-height (88px desktop / ~70px mobile) that's
+  // far too tight and rows visually collide (confirmed on a 414x560
+  // viewport). 16% row spacing fixes the card-to-card overlap, but with a
+  // 55% start the third row's center still lands under the fixed
+  // bottom:6% "AKTIVERA JARVIS"/VoiceStatus control (confirmed on the same
+  // viewport) — starting at 48% shifts all three rows up enough to clear it.
   const row = Math.floor(index / MOBILE_GRID_COLUMNS);
   const col = index % MOBILE_GRID_COLUMNS;
   const mobileLeft = `${((col + 0.5) / MOBILE_GRID_COLUMNS) * 100}%`;
-  const mobileTop = `${64 + row * 11}%`;
+  const mobileTop = `${48 + row * 14}%`;
 
   const dormantLeft = isSmallScreen ? mobileLeft : `${50 + panel.slotX * 34}%`;
   const dormantTop = isSmallScreen ? mobileTop : "82%";
@@ -58,11 +64,19 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
   // Dimmed (another panel is open) is conveyed via background/border alpha
   // only, never via the card's own opacity — the whole card, including its
   // text, must stay at >=0.92 opacity at all times per spec.
-  const dormantBackground = dimmed ? "rgba(10, 4, 22, 0.68)" : "rgba(10, 4, 22, 0.85)";
-  const dormantBorderColor = dimmed ? "rgba(192, 132, 252, 0.32)" : "rgba(192, 132, 252, 0.55)";
+  const dormantBackground = dimmed ? "rgba(7, 7, 9, 0.68)" : "rgba(7, 7, 9, 0.85)";
+  const dormantBorderColor = dimmed ? "rgba(255, 22, 61, 0.32)" : "rgba(255, 22, 61, 0.55)";
+  // Desktop keeps the exact spec'd sizing (88px / 16px 18px / 14 / 12.5).
+  // Mobile is deliberately more compact — three rows of two columns need to
+  // fit above the mic status without colliding, which the full desktop
+  // size doesn't leave room for on shorter phone viewports.
+  const dormantMinHeight = isSmallScreen ? 68 : 88;
+  const dormantPadding = isSmallScreen ? "10px 12px" : "16px 18px";
+  const dormantTitleSize = isSmallScreen ? 13 : 14;
+  const dormantSubtitleSize = isSmallScreen ? 11.5 : 12.5;
 
   return (
-    <motion.div
+    <motion.div className="hologram-panel" data-active={active}
       onClick={onSelect}
       initial={false}
       animate={
@@ -118,24 +132,24 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
         border: active
           ? `1px solid ${eiraTokens.panelBorder}`
           : `1.5px solid ${dormantBorderColor}`,
-        borderRadius: 14,
-        padding: active ? 24 : "16px 18px",
-        minHeight: active ? undefined : 88,
+        borderRadius: 6,
+        padding: active ? 24 : dormantPadding,
+        minHeight: active ? undefined : dormantMinHeight,
         color: eiraTokens.energyWhite,
-        fontFamily: "system-ui, sans-serif",
+        fontFamily: "var(--font-command)",
         backdropFilter: "blur(10px)",
         boxShadow: active
-          ? `0 0 40px ${eiraTokens.violetPrimary}55, inset 0 0 1px ${eiraTokens.violetBright}`
-          : `0 0 16px ${eiraTokens.violetPrimary}40, 0 0 6px ${eiraTokens.cyanAccent}30, inset 0 0 10px rgba(103, 232, 249, 0.06)`,
+          ? `0 0 18px ${eiraTokens.accentPrimary}28, inset 0 0 1px ${eiraTokens.accentBright}`
+          : `0 0 16px ${eiraTokens.accentPrimary}12, 0 0 6px ${eiraTokens.contrastAccent}30, inset 0 0 10px rgba(255, 22, 61, 0.06)`,
         pointerEvents: "auto",
       }}
     >
       <div
         style={{
-          fontSize: active ? 13 : 14,
+          fontSize: active ? 13 : dormantTitleSize,
           letterSpacing: 1.5,
           textTransform: "uppercase",
-          color: eiraTokens.violetBright,
+          color: eiraTokens.accentBright,
           marginBottom: active ? 16 : 6,
           opacity: active ? 0.9 : 1,
         }}
@@ -147,7 +161,7 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
           <PanelContent panel={panel.id} />
         </div>
       ) : (
-        <div style={{ fontSize: 12.5, opacity: 0.85, lineHeight: 1.4, color: eiraTokens.energyWhite }}>
+        <div style={{ fontSize: dormantSubtitleSize, opacity: 0.85, lineHeight: 1.35, color: eiraTokens.energyWhite }}>
           {panel.subtitle}
         </div>
       )}
