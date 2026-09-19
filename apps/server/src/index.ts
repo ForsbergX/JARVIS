@@ -55,6 +55,7 @@ app.get("/ws", { websocket: true }, (socket) => {
       const data = JSON.parse(raw.toString()) as {
         conversationId?: string;
         message: string;
+        uiContext?: unknown;
       };
 
       if (!conversationId) {
@@ -83,7 +84,7 @@ app.get("/ws", { websocket: true }, (socket) => {
         socket.send(JSON.stringify({ type: "speech-chunk", text: sentence }));
       };
 
-      const reply = await agent.respond(history, onSentence);
+      const reply = await agent.respond(history, onSentence, data.uiContext);
       history.push({ role: "assistant", content: reply });
       await db.appendMessage(conversationId, { role: "assistant", content: reply }).catch(() => {});
 

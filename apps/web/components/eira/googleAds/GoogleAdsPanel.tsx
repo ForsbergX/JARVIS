@@ -247,7 +247,12 @@ export function GoogleAdsPanel({ active }: GoogleAdsPanelProps) {
         right: isSmallScreen ? "auto" : "2%",
         left: isSmallScreen ? "50%" : "auto",
         width: isSmallScreen ? "92vw" : "clamp(720px, 48vw, 920px)",
-        minHeight: 520,
+        // 520 was sized for a desktop viewport — on a phone-height screen it
+        // forces the panel to ~93% of the viewport regardless of maxHeight,
+        // leaving almost no clearance above it (the mini orb bubble that
+        // floats there when a panel is open on mobile ended up overlapping
+        // this panel's own close button as a result).
+        minHeight: isSmallScreen ? 320 : 520,
         maxHeight: "75vh",
         zIndex: 25,
         transform: isSmallScreen ? "translate(-50%, -50%)" : "translateY(-50%)",

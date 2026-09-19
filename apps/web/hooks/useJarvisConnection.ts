@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { loadVoices, pickDarkMaleVoice } from "@/lib/fallbackVoice";
+import { getUIContext } from "@/lib/uiContext";
 
 export interface JarvisMessage {
   role: "user" | "assistant";
@@ -265,8 +266,15 @@ export function useJarvisConnection() {
 
     setMessages((prev) => [...prev, { role: "user", content }]);
     setPending(true);
+    // Snapshot of what's currently on screen (active panel + its data, top
+    // KPI strip, assistant state) — lets Claude answer questions about the
+    // dashboard without the user reading it out loud.
     socket.send(
-      JSON.stringify({ conversationId: conversationIdRef.current, message: content })
+      JSON.stringify({
+        conversationId: conversationIdRef.current,
+        message: content,
+        uiContext: getUIContext(),
+      })
     );
   }
 

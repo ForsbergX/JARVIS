@@ -1,12 +1,23 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ChatMessage } from "./types.js";
 import { ToolRegistry } from "./tools/registry.js";
+import { EIRA_MEMORY } from "./memory.js";
 
 const MODEL = "claude-sonnet-4-5";
+// EIRA_MEMORY is background context only — Tommy, the company, and Eira's
+// own identity/mission (see memory.ts). It's never sent to the frontend and
+// Eira shouldn't recite it unprompted; it's there so she already knows who
+// she's talking to and why, the same way a person doesn't re-introduce
+// themselves every message.
 const SYSTEM_PROMPT =
-  "You are JARVIS, a capable assistant. Use the available tools when they " +
-  "help answer the request. Be direct and concise — default to short, " +
-  "direct answers (1-3 sentences) unless the user asks for more detail.";
+  "You are Eira, the central AI operator for Forsbergs Fönsterputs Command " +
+  "Center. Use the available tools when they help answer the request. Be " +
+  "direct and concise — default to short, direct answers (1-3 sentences) " +
+  "unless the user asks for more detail.\n\n" +
+  "Below is your persistent background memory: Tommy's and your own " +
+  "history, the company, and your mission. Treat it as context you already " +
+  "know, not something to summarize or read back unless asked.\n\n" +
+  EIRA_MEMORY;
 
 // Matches a complete sentence at the start of the buffer (ending in . ! or ?
 // followed by whitespace/end), so streamed text can be handed to TTS one
@@ -41,12 +52,24 @@ export class Agent {
    * Streams the reply. When onSentence is given, it's called with each
    * complete sentence as soon as the model produces it — the caller can
    * start synthesizing/playing speech before the full reply is done.
+   *
+   * uiContext, when provided, is a JSON-serializable snapshot of what the
+   * JARVIS dashboard is currently showing (see apps/web/lib/uiContext.ts) —
+   * appended to the system prompt so the model can answer questions about
+   * what's on screen without the user reading it out loud.
    */
-  async respond(history: ChatMessage[], onSentence?: (sentence: string) => void): Promise<string> {
+  async respond(
+    history: ChatMessage[],
+    onSentence?: (sentence: string) => void,
+    uiContext?: unknown
+  ): Promise<string> {
     const messages: Anthropic.MessageParam[] = history.map((m) => ({
       role: m.role,
       content: m.content,
     }));
+    const system = uiContext
+      ? `${SYSTEM_PROMPT}\n\nCurrent JARVIS dashboard UI state (JSON, reflects exactly what the user sees right now):\n${JSON.stringify(uiContext)}`
+      : SYSTEM_PROMPT;
 
     // Tool-calling loop: keep going while Claude asks for tools, stop once
     // it returns a plain text turn.
@@ -54,7 +77,7 @@ export class Agent {
       const stream = this.client.messages.stream({
         model: MODEL,
         max_tokens: 2048,
-        system: SYSTEM_PROMPT,
+        system,
         tools: this.tools.toAnthropicTools(),
         messages,
       });

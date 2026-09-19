@@ -74,6 +74,13 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
   const dormantPadding = isSmallScreen ? "10px 12px" : "16px 18px";
   const dormantTitleSize = isSmallScreen ? 13 : 14;
   const dormantSubtitleSize = isSmallScreen ? 11.5 : 12.5;
+  // The open/active state had no mobile sizing at all before — it used the
+  // desktop "min(46vw, 620px)" box on every screen, which is ~190px wide on
+  // a 414px phone. Sized to match the GoogleAds/Finance dedicated panels'
+  // own mobile treatment (92vw, 75vh scroll cap) so all five tabs feel
+  // consistent when opened on a phone.
+  const activeLeft = isSmallScreen ? "50%" : "58%";
+  const activeWidth = isSmallScreen ? "92vw" : "min(46vw, 620px)";
 
   return (
     <motion.div className="hologram-panel" data-active={active}
@@ -82,9 +89,9 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
       animate={
         active
           ? {
-              left: "58%",
+              left: activeLeft,
               top: "50%",
-              width: "min(46vw, 620px)",
+              width: activeWidth,
               x: "-50%",
               y: "-50%",
               scale: 1,
@@ -100,11 +107,14 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
               x: "-50%",
               y: "-50%",
               scale: dormantScale,
-              // >=0.92 at all times, even dimmed — the "other panel is
-              // open" cue lives in background/border alpha instead (see
-              // dormantBackground/dormantBorderColor), never in opacity or
-              // a blur filter on the card itself, so text stays crisp.
-              opacity: dimmed ? 0.92 : 1,
+              // >=0.92 at all times, even dimmed, ON DESKTOP — the "other
+              // panel is open" cue lives in background/border alpha there
+              // (see dormantBackground/dormantBorderColor), never opacity.
+              // On mobile the active panel takes ~92vw/75vh of the screen
+              // (see activeWidth above), so a dimmed card behind it has
+              // nowhere to sit without peeking out from an edge — fully
+              // hidden there instead of just dimmed.
+              opacity: dimmed ? (isSmallScreen ? 0 : 0.92) : 1,
               rotateY: dormantRotateY,
               filter: "none",
               zIndex: 15,
@@ -135,13 +145,15 @@ export function HologramPanel({ panel, active, dimmed, onSelect, index }: Hologr
         borderRadius: 6,
         padding: active ? 24 : dormantPadding,
         minHeight: active ? undefined : dormantMinHeight,
+        maxHeight: active && isSmallScreen ? "75vh" : undefined,
+        overflowY: active && isSmallScreen ? "auto" : undefined,
         color: eiraTokens.energyWhite,
         fontFamily: "var(--font-command)",
         backdropFilter: "blur(10px)",
         boxShadow: active
           ? `0 0 18px ${eiraTokens.accentPrimary}28, inset 0 0 1px ${eiraTokens.accentBright}`
           : `0 0 16px ${eiraTokens.accentPrimary}12, 0 0 6px ${eiraTokens.contrastAccent}30, inset 0 0 10px rgba(255, 22, 61, 0.06)`,
-        pointerEvents: "auto",
+        pointerEvents: dimmed && isSmallScreen ? "none" : "auto",
       }}
     >
       <div
