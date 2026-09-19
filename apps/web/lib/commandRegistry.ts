@@ -6,6 +6,7 @@ export type CommandId =
   | "open-tasks"
   | "open-traffic"
   | "open-bookings"
+  | "open-almanac"
   | "close-panel"
   | "show-overview";
 
@@ -15,6 +16,7 @@ export const COMMAND_TO_PANEL: Partial<Record<CommandId, PanelId>> = {
   "open-tasks": "tasks",
   "open-traffic": "traffic",
   "open-bookings": "bookings",
+  "open-almanac": "almanac",
 };
 
 // The only sentences a local dashboard command may ever speak — kept fixed
@@ -25,6 +27,7 @@ export const COMMAND_CONFIRMATIONS: Record<CommandId, string> = {
   "open-tasks": "Öppnar uppgifter.",
   "open-traffic": "Öppnar webbtrafik.",
   "open-bookings": "Öppnar bokningar.",
+  "open-almanac": "Öppnar almanackan.",
   "close-panel": "Stänger panelen.",
   "show-overview": "Stänger panelen.",
 };
@@ -119,6 +122,21 @@ const COMMANDS: CommandDefinition[] = [
       "kommande bokningar",
       "open bookings",
       "show bookings",
+    ],
+  },
+  {
+    // Deliberately no "kalender"/"calendar" here — that already belongs to
+    // open-bookings above and isn't being changed.
+    id: "open-almanac",
+    phrases: [
+      "almanacka",
+      "almanackan",
+      "öppna almanacka",
+      "öppna almanackan",
+      "visa almanackan",
+      "min almanacka",
+      "open almanac",
+      "show almanac",
     ],
   },
   {

@@ -9,6 +9,7 @@ import { mockFinance, mockGoogleAds, mockCustomers, mockTasks, mockTraffic } fro
 import { mockGoogleAdsData } from "./mockGoogleAdsData";
 import { mockFinanceData } from "./mockFinanceData";
 import { getAllBookings, getPastBookings, getUpcomingBookings, bookingWeekStats } from "./mockBookingsData";
+import { ALMANAC_ENTRIES } from "./almanacData";
 
 // One data source per panel id — mirrors exactly what PanelContent.tsx /
 // GoogleAdsPanel.tsx / FinancePanel.tsx render, so "visible" always means
@@ -27,6 +28,7 @@ function getPanelData() {
     },
     ads: mockGoogleAdsData,
     finance: mockFinanceData,
+    almanac: ALMANAC_ENTRIES,
   } as const;
 }
 

@@ -11,6 +11,12 @@ export interface JarvisMessage {
 }
 
 const WS_URL = process.env.NEXT_PUBLIC_JARVIS_WS_URL ?? "ws://localhost:4000/ws";
+// Same backoff shape as the speech-recognition retry in useVoiceCommands —
+// the socket previously never reconnected after dropping (server restart,
+// a stale dev tunnel, a network blip), leaving the AI fallback dead until a
+// full page reload.
+const RECONNECT_BASE_DELAY_MS = 500;
+const RECONNECT_MAX_DELAY_MS = 5000;
 
 function decodeAudio(base64: string, contentType: string): string {
   const binary = atob(base64);
@@ -73,43 +79,67 @@ export function useJarvisConnection() {
   }, [voiceEnabled]);
 
   useEffect(() => {
-    const socket = new WebSocket(WS_URL);
-    socketRef.current = socket;
+    let cancelled = false;
+    let reconnectAttempt = 0;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    socket.onopen = () => setConnected(true);
-    socket.onclose = () => setConnected(false);
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "conversation") {
-        conversationIdRef.current = data.conversationId;
-      } else if (data.type === "speech-chunk") {
-        if (!voiceEnabledRef.current) return;
-        // Normal AI voice replies are capped at two spoken sentences per
-        // turn — later sentences in the same response still arrive and are
-        // stored in `messages`, they're just not spoken.
-        if (spokenSentenceCountRef.current >= MAX_SPOKEN_SENTENCES) return;
-        spokenSentenceCountRef.current += 1;
-        if (data.audio && data.audioType) {
-          enqueueClip(decodeAudio(data.audio, data.audioType));
-        } else if (data.text) {
-          // ElevenLabs failed for this sentence (quota/plan) — fall back to
-          // the browser's own voice, silently, no error shown to the user.
-          enqueueSpeech(data.text);
+    function connect() {
+      const socket = new WebSocket(WS_URL);
+      socketRef.current = socket;
+
+      socket.onopen = () => {
+        reconnectAttempt = 0;
+        setConnected(true);
+      };
+      socket.onclose = () => {
+        setConnected(false);
+        if (cancelled) return;
+        // Backend restarted, dev tunnel went stale, network blip, ... —
+        // keep trying instead of leaving the AI fallback dead until the
+        // user manually reloads the page.
+        const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** reconnectAttempt, RECONNECT_MAX_DELAY_MS);
+        reconnectAttempt += 1;
+        reconnectTimeout = setTimeout(connect, delay);
+      };
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "conversation") {
+          conversationIdRef.current = data.conversationId;
+        } else if (data.type === "speech-chunk") {
+          if (!voiceEnabledRef.current) return;
+          // Normal AI voice replies are capped at two spoken sentences per
+          // turn — later sentences in the same response still arrive and are
+          // stored in `messages`, they're just not spoken.
+          if (spokenSentenceCountRef.current >= MAX_SPOKEN_SENTENCES) return;
+          spokenSentenceCountRef.current += 1;
+          if (data.audio && data.audioType) {
+            enqueueClip(decodeAudio(data.audio, data.audioType));
+          } else if (data.text) {
+            // ElevenLabs failed for this sentence (quota/plan) — fall back to
+            // the browser's own voice, silently, no error shown to the user.
+            enqueueSpeech(data.text);
+          }
+        } else if (data.type === "message") {
+          setPending(false);
+          setMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
+          onAssistantTextRef.current?.(data.content);
+        } else if (data.type === "error") {
+          setPending(false);
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: `Error: ${data.message}` },
+          ]);
         }
-      } else if (data.type === "message") {
-        setPending(false);
-        setMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
-        onAssistantTextRef.current?.(data.content);
-      } else if (data.type === "error") {
-        setPending(false);
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: `Error: ${data.message}` },
-        ]);
-      }
-    };
+      };
+    }
 
-    return () => socket.close();
+    connect();
+
+    return () => {
+      cancelled = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      socketRef.current?.close();
+    };
   }, []);
 
   function ensureAudioContext(): AudioContext {

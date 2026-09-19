@@ -9,9 +9,9 @@ export type EiraState =
   | "success"
   | "error";
 
-export type PanelId = "bookings" | "tasks" | "traffic" | "ads" | "finance";
+export type PanelId = "bookings" | "tasks" | "traffic" | "ads" | "finance" | "almanac";
 
-export const PANEL_IDS: PanelId[] = ["bookings", "tasks", "traffic", "ads", "finance"];
+export const PANEL_IDS: PanelId[] = ["bookings", "tasks", "traffic", "ads", "finance", "almanac"];
 
 export type Quality = "high" | "low";
 

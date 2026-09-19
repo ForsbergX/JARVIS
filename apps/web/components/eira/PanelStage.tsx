@@ -6,10 +6,11 @@ import { PANEL_LAYOUT } from "./panelLayout";
 import { HologramPanel } from "./HologramPanel";
 import { GoogleAdsPanel } from "./googleAds/GoogleAdsPanel";
 import { FinancePanel } from "./finance/FinancePanel";
+import { AlmanacPanel } from "./almanac/AlmanacPanel";
 
 // Panels with their own dedicated, larger active-state component —
 // HologramPanel still renders their dormant tray thumbnail as before.
-const DEDICATED_PANEL_IDS = new Set(["ads", "finance"]);
+const DEDICATED_PANEL_IDS = new Set(["ads", "finance", "almanac"]);
 
 export function PanelStage() {
   const activePanel = useEiraStore((s) => s.activePanel);
@@ -41,6 +42,7 @@ export function PanelStage() {
 
       <GoogleAdsPanel active={activePanel === "ads"} />
       <FinancePanel active={activePanel === "finance"} />
+      <AlmanacPanel active={activePanel === "almanac"} />
     </div>
   );
 }
