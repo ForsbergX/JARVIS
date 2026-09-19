@@ -67,12 +67,9 @@ export function useJarvisConnection() {
   const utteranceGenerationRef = useRef(0);
   // Only relevant to the dormant ElevenLabs clip path — tracked so
   // interruptSpeech() can actually silence it, not just ignore its callbacks.
+  const beforeSpeechRef = useRef<(() => Promise<void>) | undefined>(undefined);
+  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
-
-  // How many sentences of the CURRENT assistant response have been spoken —
-  // reset per user turn, capped so "vanliga röstsvar" never ramble past two.
-  const spokenSentenceCountRef = useRef(0);
-  const MAX_SPOKEN_SENTENCES = 2;
 
   useEffect(() => {
     voiceEnabledRef.current = voiceEnabled;
@@ -93,6 +90,7 @@ export function useJarvisConnection() {
       };
       socket.onclose = () => {
         setConnected(false);
+        setPending(false);
         if (cancelled) return;
         // Backend restarted, dev tunnel went stale, network blip, ... —
         // keep trying instead of leaving the AI fallback dead until the
@@ -107,11 +105,6 @@ export function useJarvisConnection() {
           conversationIdRef.current = data.conversationId;
         } else if (data.type === "speech-chunk") {
           if (!voiceEnabledRef.current) return;
-          // Normal AI voice replies are capped at two spoken sentences per
-          // turn — later sentences in the same response still arrive and are
-          // stored in `messages`, they're just not spoken.
-          if (spokenSentenceCountRef.current >= MAX_SPOKEN_SENTENCES) return;
-          spokenSentenceCountRef.current += 1;
           if (data.audio && data.audioType) {
             enqueueClip(decodeAudio(data.audio, data.audioType));
           } else if (data.text) {
@@ -245,6 +238,8 @@ export function useJarvisConnection() {
       return;
     }
 
+    await beforeSpeechRef.current?.();
+    if (stale()) return;
     const voices = await loadVoices();
     if (stale()) return; // interrupted while voices were loading
 
@@ -267,32 +262,46 @@ export function useJarvisConnection() {
     }
 
     const finish = () => {
-      if (stale()) return;
+      if (stale() || !active) return;
       active = false;
+      activeUtteranceRef.current = null;
+      console.log("[voice] speech ended");
       onEnded();
     };
 
     utterance.onstart = () => {
       if (stale()) return;
+      console.log("[voice] speech started");
       onStart?.();
       pulse();
     };
     utterance.onend = finish;
-    utterance.onerror = finish;
+    utterance.onerror = (event) => {
+      console.error("[voice] speech error", event.error);
+      finish();
+    };
 
-    // Only one utterance may ever exist — cancel anything still queued or
-    // speaking in the engine itself before handing it a new one.
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
+    // No cancel() here: our own queue (playNextInQueue) already guarantees
+    // only one utterance plays at a time, and Chrome/Edge's cancel() is
+    // asynchronous under the hood — calling it immediately before speak()
+    // can silently swallow the utterance that follows it (Eira "replies"
+    // but says nothing). cancel() is still used in interruptSpeech() below,
+    // where the mic button genuinely needs to cut her off mid-sentence.
+    activeUtteranceRef.current = utterance;
+    try {
+      window.speechSynthesis.speak(utterance);
+    } catch (error) {
+      console.error("[voice] speech error", error);
+      finish();
+    }
   }
 
   function sendMessage(text: string) {
     const socket = socketRef.current;
     const content = text.trim();
-    if (!socket || socket.readyState !== WebSocket.OPEN || !content) return;
+    if (!socket || socket.readyState !== WebSocket.OPEN || !content) return false;
 
     ensureAudioContext();
-    spokenSentenceCountRef.current = 0; // new turn — reset the per-response speech cap
 
     setMessages((prev) => [...prev, { role: "user", content }]);
     setPending(true);
@@ -306,6 +315,8 @@ export function useJarvisConnection() {
         uiContext: getUIContext(),
       })
     );
+    console.log("[voice] message sent", content);
+    return true;
   }
 
   /** Speaks fixed text via the browser's own voice, bypassing Claude and any
@@ -345,6 +356,9 @@ export function useJarvisConnection() {
     speakText,
     interruptSpeech,
     ensureAudioContext,
+    onBeforeSpeech: (fn: (() => Promise<void>) | undefined) => {
+      beforeSpeechRef.current = fn;
+    },
     onAssistantText: (fn: (text: string) => void) => {
       onAssistantTextRef.current = fn;
     },
